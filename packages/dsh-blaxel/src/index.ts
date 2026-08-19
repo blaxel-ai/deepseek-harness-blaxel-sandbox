@@ -69,7 +69,11 @@ export class BlaxelRuntime extends Service {
     ctx.effect(() => async () => {
       this.disposed = true
       const sandbox = await this.ready.catch(() => undefined)
-      if (sandbox !== undefined) await sandbox.delete().catch(() => undefined)
+      if (sandbox !== undefined) {
+        try { await sandbox.delete() } catch (error) {
+          if (!/not found|404/i.test(String(error))) throw error
+        }
+      }
     }, 'blaxel sandbox teardown')
   }
 
