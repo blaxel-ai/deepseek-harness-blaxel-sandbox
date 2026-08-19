@@ -1,0 +1,18 @@
+{
+  "name": "dsh-fs-blaxel",
+  "version": "0.1.0",
+  "description": "Blaxel filesystem implementation for DeepSeek Harness",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0",
+    "@deepseek-ai/dsh-fs": ">=0.0.1-rc.1",
+    "dsh-blaxel": "workspace:*"
+  },
+  "scripts": { "build": "tsc -p tsconfig.json" }
+  ,"devDependencies": { "@deepseek-ai/dsh-fs": "0.0.1-rc.1", "@deepseek-ai/cordis": "^4.0.1", "dsh-blaxel": "workspace:*" }
+}

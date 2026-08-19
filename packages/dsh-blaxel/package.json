@@ -1,0 +1,14 @@
+{
+  "name": "dsh-blaxel",
+  "version": "0.1.0",
+  "description": "Shared Blaxel sandbox lifecycle for DeepSeek Harness provider adapters",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "license": "MIT",
+  "peerDependencies": { "@deepseek-ai/cordis": ">=4.0.0" },
+  "dependencies": { "@blaxel/core": "^0.3.11", "@deepseek-ai/schemastery": "^3.18.1-rc.1" },
+  "scripts": { "build": "tsc -p tsconfig.json" }
+}
