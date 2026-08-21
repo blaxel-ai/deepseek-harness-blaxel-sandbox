@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { BlaxelRuntime } from '../packages/dsh-blaxel/dist/index.js'
-import { BlaxelFileSystem } from '../packages/dsh-fs-blaxel/dist/index.js'
-import { BlaxelSubprocessRuntime } from '../packages/dsh-subprocess-blaxel/dist/index.js'
+import { BlaxelFileSystem, BlaxelRuntime, BlaxelSubprocessRuntime } from '../src/index.js'
 
 const enabled = process.env.DSH_BLAXEL_LIVE === '1'
 

@@ -1,0 +1,76 @@
+# The package is visible in every Web profile where it is installed, but local
+# execution remains the default. The session composer launches a second DSH Web
+# process with DSH_BLAXEL_ACTIVE=1 when the user chooses Open in Blaxel.
+- id: subprocess
+  name: '@deepseek-ai/dsh-subprocess-local'
+  disabled: !!js process.env.DSH_BLAXEL_ACTIVE === '1'
+
+- id: fs-sandbox
+  name: '@deepseek-ai/dsh-fs-sandbox'
+  disabled: !!js process.env.DSH_BLAXEL_ACTIVE === '1'
+
+- id: sandbox-policy
+  name: '@deepseek-ai/dsh-sandbox-policy'
+  config:
+    mode: !!js "process.env.DSH_BLAXEL_ACTIVE === '1' ? 'danger-full-access' : (process.env.DSH_PERMISSION_MODE ?? 'workspace-write')"
+    workspaceRoot: !!js "process.env.DSH_BLAXEL_ACTIVE === '1' ? (process.env.DSH_BLAXEL_WORKSPACE_ROOT || '/workspace') : process.cwd()"
+
+- id: bash-sandbox
+  name: '@deepseek-ai/dsh-bash-sandbox'
+  disabled: !!js "process.env.DSH_BLAXEL_ACTIVE === '1' ? false : process.platform === 'win32'"
+  config:
+    timeoutMs: 60000
+
+- id: pwsh-sandbox
+  name: '@deepseek-ai/dsh-pwsh-sandbox'
+  disabled: !!js "process.env.DSH_BLAXEL_ACTIVE === '1' || process.platform !== 'win32'"
+
+- id: approval
+  name: '@deepseek-ai/dsh-user-approval'
+  config:
+    policy: !!js "process.env.DSH_BLAXEL_ACTIVE === '1' || (process.env.DSH_PERMISSION_MODE ?? 'workspace-write') === 'danger-full-access' ? 'never' : 'ask'"
+
+- id: permission
+  name: '@deepseek-ai/dsh-permission-presets'
+  config:
+    presets: !!js "process.env.DSH_BLAXEL_ACTIVE === '1' ? ({ 'danger-full-access': { sandbox: 'danger-full-access', approval: 'never' } }) : ({ 'read-only': { sandbox: 'read-only', approval: 'ask' }, 'workspace-write': { sandbox: 'workspace-write', approval: 'ask' }, 'danger-full-access': { sandbox: 'danger-full-access', approval: 'never' } })"
+    defaultPreset: !!js "process.env.DSH_BLAXEL_ACTIVE === '1' ? 'danger-full-access' : (process.env.DSH_PERMISSION_MODE ?? 'workspace-write')"
+
+- id: session-persistence-jsonl
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: !!js "process.env.DSH_BLAXEL_SESSION_ROOT || dshHomePath('sessions')"
+
+- id: storage-json
+  name: '@deepseek-ai/dsh-storage-json'
+  config:
+    root: !!js "process.env.DSH_BLAXEL_STORAGE_ROOT || dshHomePath('storages')"
+
+- insert:
+    - id: blaxel-runtime
+      name: '@blaxel/dsh-sandbox/runtime'
+      disabled: !!js process.env.DSH_BLAXEL_ACTIVE !== '1'
+      config:
+        cwd: !!js process.env.DSH_BLAXEL_CWD || '/workspace'
+        workspaceRoot: !!js process.env.DSH_BLAXEL_WORKSPACE_ROOT || '/workspace'
+        sourceRoot: !!js process.env.DSH_BLAXEL_SOURCE_ROOT
+        image: !!js process.env.DSH_BLAXEL_IMAGE || 'blaxel/node:latest'
+        memory: !!js Number(process.env.DSH_BLAXEL_MEMORY || 4096)
+
+    - id: blaxel-subprocess
+      name: '@blaxel/dsh-sandbox/subprocess'
+      disabled: !!js process.env.DSH_BLAXEL_ACTIVE !== '1'
+
+    - id: blaxel-filesystem
+      name: '@blaxel/dsh-sandbox/filesystem'
+      disabled: !!js process.env.DSH_BLAXEL_ACTIVE !== '1'
+
+    # A root-package row lets DSH discover the package's browser client module.
+    - id: blaxel-client
+      name: '@blaxel/dsh-sandbox'
+
+    # This host bridge is inert outside Web profiles because its webServer
+    # injection is unavailable. It serves status and owns the child DSH process
+    # created by the Open in Blaxel settings action.
+    - id: blaxel-web
+      name: '@blaxel/dsh-sandbox/web'

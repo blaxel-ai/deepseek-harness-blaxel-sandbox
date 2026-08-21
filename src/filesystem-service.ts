@@ -1,7 +1,6 @@
 /** Blaxel implementation of the DSH filesystem capability seam. */
 import { createHash, randomUUID } from 'node:crypto'
 import { posix } from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
 import {
   FileSystem,
   FsError,
@@ -18,8 +17,8 @@ import type {
   FsWriteIntent,
   FsWriteOutcome,
 } from '@deepseek-ai/dsh-fs'
-import type { BlaxelRuntime } from 'dsh-blaxel'
-import { shellQuote } from 'dsh-blaxel'
+import type { BlaxelRuntime } from './runtime-service.js'
+import { shellQuote } from './runtime-service.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context { blaxel: BlaxelRuntime }
@@ -75,7 +74,7 @@ export class BlaxelFileSystem extends FileSystem {
   override async resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget> {
     assertNotAborted(opts?.signal, 'resolve')
     if (path.trim() === '') throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
-    const displayPath = posix.resolve(opts?.cwd ?? this.ctx.blaxel.cwd, path)
+    const displayPath = this.remotePath(path, opts?.cwd)
     // Blaxel's filesystem API is path-addressed. Keep the normalized POSIX
     // path as the opaque target key; no host path is ever consulted.
     return { targetKey: FsTargetKey(displayPath), displayPath }
@@ -99,7 +98,7 @@ export class BlaxelFileSystem extends FileSystem {
 
   override async lstat(path: string, opts?: { cwd?: string }, signal?: AbortSignal): Promise<FsPathInfo | undefined> {
     assertNotAborted(signal, 'lstat')
-    const displayPath = posix.resolve(opts?.cwd ?? this.ctx.blaxel.cwd, path)
+    const displayPath = this.remotePath(path, opts?.cwd)
     return this.probe(displayPath, displayPath, false, signal)
   }
 
@@ -177,6 +176,13 @@ export class BlaxelFileSystem extends FileSystem {
       const outcome = await this.writeText(target, after, { kind: 'replaceIfVersion', version: info.version }, signal)
       return { before, after, version: outcome.version }
     })
+  }
+
+  private remotePath(path: string, cwd?: string): string {
+    const mappedPath = this.ctx.blaxel.toRemotePath(path)
+    if (mappedPath !== path || posix.isAbsolute(mappedPath)) return posix.resolve(mappedPath)
+    const base = this.ctx.blaxel.toRemotePath(cwd ?? this.ctx.blaxel.cwd)
+    return posix.resolve(base, mappedPath)
   }
 
   private async readRaw(target: FsTarget, signal?: AbortSignal): Promise<Uint8Array> {

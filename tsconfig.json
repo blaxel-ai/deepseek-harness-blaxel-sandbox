@@ -1,16 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "skipLibCheck": true,
+    "declaration": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "outDir": "dist",
-    "lib": ["ES2024"],
-    "baseUrl": "."
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022"
   },
-  "include": ["tests/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
 }
