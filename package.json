@@ -28,7 +28,10 @@
   },
   "packageManager": "pnpm@10.14.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": ["esbuild"],
+    "overrides": {
+      "js-yaml": "4.3.1"
+    }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
