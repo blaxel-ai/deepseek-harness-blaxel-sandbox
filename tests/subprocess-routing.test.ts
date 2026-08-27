@@ -1,5 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import type { Context } from '@deepseek-ai/cordis'
+import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
+import { describe, expect, it, vi } from 'vitest'
+import { RoutingSubprocessRuntime } from '../src/subprocess/router.js'
 import { remoteArgv, remoteExecutable } from '../src/subprocess/service.js'
+
+function routingRuntime(ctx: Context, local: SubprocessRuntime): RoutingSubprocessRuntime {
+  const runtime = Object.create(RoutingSubprocessRuntime.prototype) as RoutingSubprocessRuntime
+  Object.defineProperties(runtime, {
+    ctx: { value: ctx },
+    local: { value: local },
+  })
+  return runtime
+}
 
 describe('remote subprocess routing', () => {
   it('removes the macOS sandbox wrapper before Linux execution', () => {
@@ -29,5 +41,25 @@ describe('remote subprocess routing', () => {
 
   it('rejects a malformed sandbox wrapper', () => {
     expect(() => remoteArgv(['sandbox-exec', '-p', 'profile'])).toThrow('invalid sandbox-exec wrapper')
+  })
+
+  it('ignores a forged environment session id when selecting the backend', async () => {
+    const remoteResolve = vi.fn(async () => '/sandbox/bash')
+    const localResolve = vi.fn(async () => '/host/bash')
+    const remote = { resolveExecutable: remoteResolve } as unknown as SubprocessRuntime
+    const local = { resolveExecutable: localResolve } as unknown as SubprocessRuntime
+    const ctx = {
+      agents: { currentInitiator: () => ({ id: 'sandbox-session' }) },
+      blaxelSessions: {
+        get: (sessionId: string | undefined) => sessionId === 'sandbox-session' ? { subprocess: remote } : undefined,
+        isSandboxSession: () => false,
+      },
+    } as unknown as Context
+
+    const resolved = await routingRuntime(ctx, local).resolveExecutable('bash', { DSH_SESSION_ID: 'forged-local-session' })
+
+    expect(resolved).toBe('/sandbox/bash')
+    expect(remoteResolve).toHaveBeenCalledOnce()
+    expect(localResolve).not.toHaveBeenCalled()
   })
 })

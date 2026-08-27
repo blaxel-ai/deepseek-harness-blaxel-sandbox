@@ -136,7 +136,7 @@ Cards, inputs, statuses, buttons, disabled states, hover states, warnings, and e
 - Local patch tests cover success, conflict with no local mutation, and truncated patch rejection.
 - Auth tests cover same-workspace refresh, cross-workspace rejection, and persisted failed bindings blocking workspace switches.
 - `git diff --check`: passed.
-- Full plugin `pnpm check`: passed, including lint, TypeScript, 75 tests, build, and package lint; one opt-in live test was skipped.
+- Full plugin `pnpm check`: passed, including lint, TypeScript, 78 tests, build, and package lint; one opt-in live test was skipped.
 - Real first sandbox implementation: produced two intended Calibrator files.
 - Real OAuth recovery through signed-in Codex Chrome Use: passed.
 - Light and dark settings rendering through signed-in Codex Chrome Use: passed; the original System appearance preference was restored afterward.

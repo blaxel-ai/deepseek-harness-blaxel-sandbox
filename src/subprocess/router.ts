@@ -9,8 +9,8 @@ export class RoutingSubprocessRuntime extends SubprocessRuntime {
     super(ctx)
   }
 
-  private backend(explicitSessionId?: string): SubprocessRuntime {
-    const sessionId = explicitSessionId ?? (String(this.ctx.agents.currentInitiator()?.id ?? '') || undefined)
+  private backend(): SubprocessRuntime {
+    const sessionId = String(this.ctx.agents.currentInitiator()?.id ?? '') || undefined
     const remote = this.ctx.blaxelSessions.get(sessionId)
     if (remote !== undefined) return remote.subprocess
     if (this.ctx.blaxelSessions.isSandboxSession(sessionId)) throw new Error('This sandbox session is stopped; start a new sandbox session to continue')
@@ -18,8 +18,8 @@ export class RoutingSubprocessRuntime extends SubprocessRuntime {
   }
 
   override resolveExecutable(command: string, env?: Readonly<Record<string, string>>, signal?: AbortSignal): Promise<string> {
-    return this.backend(env?.DSH_SESSION_ID).resolveExecutable(command, env, signal)
+    return this.backend().resolveExecutable(command, env, signal)
   }
-  override spawn(spec: SubprocessSpawnSpec): SubprocessHandle { return this.backend(spec.env?.DSH_SESSION_ID).spawn(spec) }
-  override spawnTerminal(spec: SubprocessTerminalSpawnSpec): Promise<SubprocessTerminalHandle> { return this.backend(spec.env?.DSH_SESSION_ID).spawnTerminal(spec) }
+  override spawn(spec: SubprocessSpawnSpec): SubprocessHandle { return this.backend().spawn(spec) }
+  override spawnTerminal(spec: SubprocessTerminalSpawnSpec): Promise<SubprocessTerminalHandle> { return this.backend().spawnTerminal(spec) }
 }

@@ -25,7 +25,7 @@ Web exposes **Open in Sandbox** beside the chat input. It is enabled only for se
 - Every provider is a folder of focused modules under `src/<provider>/`, with cross-provider helpers in `src/shared/`; the top-level `src/<provider>.ts` files are Loader entry shims only.
 - Web lists all running sandbox sessions in Settings. Sandbox-backed rows use an indented container marker in the native sidebar.
 - Web moves a session by atomically binding its existing ID to a Blaxel runtime. It does not read, rewrite, or copy persistence artifacts.
-- Keyless lint, typecheck, 75 tests, build, and publint pass for the single-host architecture.
+- Keyless lint, typecheck, 78 tests, build, and publint pass for the single-host architecture.
 - The packed tarball installs into a clean Web profile, composes all five Blaxel rows, and boots the Web command when pnpm is given the three required native-build approvals documented in the README.
 - The earlier separate-process Web flow was manually verified, but that proof does not validate the replacement session router. Live native-session switching and remote routing still require verification.
 - Filesystem hardening now canonicalizes symlink aliases remotely, validates typed metadata and listings, bounds `readBytes` before transport, serializes each mutation once, publishes through a private sibling directory, preserves mode and CRLF edits, and uses atomic no-replace guarded creates. Streaming text still uses a whole-file SDK read.
