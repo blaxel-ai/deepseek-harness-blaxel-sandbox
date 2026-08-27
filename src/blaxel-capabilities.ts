@@ -46,13 +46,21 @@ function packageBin(packageName: string, relativePath: string): string {
   return join(dirname(require.resolve(`${packageName}/package.json`)), relativePath)
 }
 
-function safeCommandError(error: unknown): Error {
+export function safeCapabilityCommandError(error: unknown, redactions: readonly string[] = []): Error {
   if (typeof error !== 'object' || error === null) return new Error('The capability command failed')
   const candidate = error as { stderr?: unknown; message?: unknown }
   const detail = typeof candidate.stderr === 'string' && candidate.stderr.trim() !== ''
     ? candidate.stderr.trim().split('\n').at(-1)
     : typeof candidate.message === 'string' ? candidate.message : undefined
-  return new Error(detail?.replaceAll(/Bearer\s+\S+/gi, 'Bearer [redacted]') ?? 'The capability command failed')
+  let safe = detail?.replaceAll(/Bearer\s+\S+/gi, 'Bearer [redacted]') ?? 'The capability command failed'
+  for (const redaction of redactions) {
+    if (redaction !== '') safe = safe.replaceAll(redaction, '[redacted]')
+  }
+  return new Error(safe)
+}
+
+function commandRedactions(args: readonly string[]): string[] {
+  return args.flatMap((arg, index) => arg === '--proxy-bearer-token' && args[index + 1] !== undefined ? [args[index + 1]] : [])
 }
 
 export class BlaxelCapabilitiesManager {
@@ -223,7 +231,7 @@ export class BlaxelCapabilitiesManager {
     try {
       await runFile(process.execPath, [script, ...args], { timeout, maxBuffer: 2 * 1024 * 1024 })
     } catch (error) {
-      throw safeCommandError(error)
+      throw safeCapabilityCommandError(error, commandRedactions(args))
     }
   }
 }

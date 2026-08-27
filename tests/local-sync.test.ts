@@ -59,7 +59,7 @@ describe('moving sandbox changes locally', () => {
 
   it('rejects a guest-created symbolic link without changing the worktree', async () => {
     const root = await repository()
-    const text = 'diff --git a/id_rsa b/id_rsa\nnew file mode 0120000 \t\nindex 0000000..3594e94\n--- /dev/null\n+++ b/id_rsa\n@@ -0,0 +1 @@\n+/etc/passwd\n\\ No newline at end of file\n'
+    const text = 'diff --git a/id_rsa b/id_rsa\nnew file mode 0120000 extra\nindex 0000000..3594e94\n--- /dev/null\n+++ b/id_rsa\n@@ -0,0 +1 @@\n+/etc/passwd\n\\ No newline at end of file\n'
 
     await expect(applySandboxPatch(root, {
       commit: 'sandbox-baseline', text, bytes: Buffer.byteLength(text), truncated: false, checkedAt: new Date().toISOString(),
@@ -69,7 +69,7 @@ describe('moving sandbox changes locally', () => {
 
   it('rejects rewriting an existing symbolic link target', async () => {
     const root = await repository()
-    const text = 'diff --git a/link b/link\nindex 67be85f..3594e94 00120000\t\n--- a/link\n+++ b/link\n@@ -1 +1 @@\n-feature.txt\n\\ No newline at end of file\n+/etc/passwd\n\\ No newline at end of file\n'
+    const text = 'diff --git a/link b/link\nindex 67be85f..3594e94 00120000 unexpected\n--- a/link\n+++ b/link\n@@ -1 +1 @@\n-feature.txt\n\\ No newline at end of file\n+/etc/passwd\n\\ No newline at end of file\n'
 
     await expect(applySandboxPatch(root, {
       commit: 'sandbox-baseline', text, bytes: Buffer.byteLength(text), truncated: false, checkedAt: new Date().toISOString(),
