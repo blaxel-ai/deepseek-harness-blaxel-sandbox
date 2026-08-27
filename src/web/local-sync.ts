@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import type { DivergencePatch } from './divergence.js'
 import { inspectGitWorkspace } from './workspace-snapshot.js'
@@ -19,6 +19,55 @@ export function assertSafeSandboxPatch(text: string): void {
     const encoded = MODE_HEADER.exec(line)?.[1] ?? INDEX_HEADER.exec(line)?.[1]
     if (encoded !== undefined && (Number.parseInt(encoded, 8) & TYPE_MASK) === SYMLINK_MODE) {
       throw new Error('Sandbox changes include a symbolic link, so nothing was applied locally')
+    }
+  }
+}
+
+function parsePatchTargets(numstat: string): string[] {
+  const records = numstat.split('\0')
+  const targets: string[] = []
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index]
+    const firstTab = record.indexOf('\t')
+    const secondTab = firstTab === -1 ? -1 : record.indexOf('\t', firstTab + 1)
+    if (secondTab === -1) continue
+    const path = record.slice(secondTab + 1)
+    if (path !== '') {
+      targets.push(path)
+      continue
+    }
+    if (records[index + 1] !== undefined && records[index + 1] !== '') targets.push(records[index += 1])
+    if (records[index + 1] !== undefined && records[index + 1] !== '') targets.push(records[index += 1])
+  }
+  return targets
+}
+
+async function assertSafeHostTargets(repoRoot: string, patchPath: string): Promise<void> {
+  const { stdout } = await execFileAsync('git', [
+    '-C', repoRoot,
+    'apply',
+    '--numstat',
+    '-z',
+    '--binary',
+    patchPath,
+  ], { encoding: 'utf8', maxBuffer: MAX_GIT_OUTPUT_BYTES })
+  for (const target of parsePatchTargets(stdout)) {
+    const absolute = resolve(repoRoot, target)
+    const local = relative(repoRoot, absolute)
+    if (local === '' || local === '..' || local.startsWith(`..${sep}`) || isAbsolute(local)) {
+      throw new Error('Sandbox changes target a path outside the original worktree')
+    }
+    let current = repoRoot
+    for (const part of local.split(sep)) {
+      current = join(current, part)
+      try {
+        if ((await lstat(current)).isSymbolicLink()) {
+          throw new Error('Sandbox changes target a symbolic link, so nothing was applied locally')
+        }
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') break
+        throw error
+      }
     }
   }
 }
@@ -53,6 +102,7 @@ export async function applySandboxPatch(repoRoot: string, patch: DivergencePatch
   const patchPath = join(directory, 'sandbox.patch')
   try {
     await writeFile(patchPath, patch.text, { encoding: 'utf8', mode: 0o600 })
+    await assertSafeHostTargets(workspace.repoRoot, patchPath)
     await gitApply(workspace.repoRoot, patchPath, true)
     await gitApply(workspace.repoRoot, patchPath, false)
   } finally {

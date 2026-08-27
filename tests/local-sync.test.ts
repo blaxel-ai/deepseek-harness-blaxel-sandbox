@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -74,5 +74,18 @@ describe('moving sandbox changes locally', () => {
     await expect(applySandboxPatch(root, {
       commit: 'sandbox-baseline', text, bytes: Buffer.byteLength(text), truncated: false, checkedAt: new Date().toISOString(),
     })).rejects.toThrow('symbolic link')
+  })
+
+  it('rejects a content-only patch targeting an existing host symbolic link', async () => {
+    const root = await repository()
+    await symlink('feature.txt', join(root, 'link'))
+    await execFileAsync('git', ['-C', root, 'add', 'link'])
+    await execFileAsync('git', ['-C', root, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '-m', 'add link'])
+    const text = 'diff --git a/link b/link\n--- a/link\n+++ b/link\n@@ -1 +1 @@\n-feature.txt\n+/etc/passwd\n'
+
+    await expect(applySandboxPatch(root, {
+      commit: 'sandbox-baseline', text, bytes: Buffer.byteLength(text), truncated: false, checkedAt: new Date().toISOString(),
+    })).rejects.toThrow('symbolic link')
+    expect(await readlink(join(root, 'link'))).toBe('feature.txt')
   })
 })
