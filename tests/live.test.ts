@@ -21,6 +21,28 @@ describe.skipIf(!enabled)('Blaxel live DSH seams', () => {
       const target = await ctx.fs.resolve('probe.txt')
       await ctx.fs.writeText(target, 'written-by-fs\n')
       expect(await ctx.fs.readText(target)).toBe('written-by-fs\n')
+      expect(Buffer.from(await ctx.fs.readBytes(target, undefined, 64)).toString()).toBe('written-by-fs\n')
+      await expect(ctx.fs.readBytes(target, undefined, 4)).rejects.toMatchObject({ code: 'FS_TOO_LARGE' })
+
+      const crlf = await ctx.fs.resolve('crlf.txt')
+      await ctx.fs.writeText(crlf, 'one\r\ntwo\r\n', { kind: 'createIfAbsent' })
+      const observed = await ctx.fs.stat(crlf)
+      if (observed === undefined) throw new Error('live filesystem stat returned no result')
+      await ctx.fs.editText(crlf, { oldString: 'one\n', newString: 'first\n', replaceAll: false }, { version: observed.version })
+      expect(await ctx.fs.readText(crlf)).toBe('first\r\ntwo\r\n')
+      await expect(ctx.fs.writeText(crlf, 'must-not-win', { kind: 'createIfAbsent' }))
+        .rejects.toMatchObject({ code: 'FS_NOT_OBSERVED' })
+
+      const linked = await ctx.blaxel.getSandbox().then(sandbox => sandbox.process.exec({
+        command: 'ln -s probe.txt alias.txt',
+        workingDir: ctx.blaxel.cwd,
+        waitForCompletion: true,
+      }))
+      expect(linked.exitCode).toBe(0)
+      const alias = await ctx.fs.resolve('alias.txt')
+      expect(alias.targetKey).toBe(target.targetKey)
+      expect((await ctx.fs.listDir(await ctx.fs.resolve('.'))).map(entry => entry.name)).toContain('alias.txt')
+
       const process = ctx.subprocess.spawn({
         argv: ['/bin/bash', '-lc', 'printf written-by-bash'], cwd: ctx.blaxel.cwd,
         stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: 500,

@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   createGitWorkspaceSnapshot,
   inspectGitWorkspace,
+  parseSnapshotMeta,
   removeGitWorkspaceSnapshot,
+  snapshotMetaEnv,
 } from '../src/web/workspace-snapshot.js'
 
 const execFileAsync = promisify(execFile)
@@ -46,6 +48,8 @@ describe('Git workspace launch', () => {
     expect(await readFile(join(extracted, '.env.example'), 'utf8')).toContain('replace-me')
     await expect(readFile(join(extracted, '.env'), 'utf8')).rejects.toThrow()
     await expect(readFile(join(extracted, 'ignored.log'), 'utf8')).rejects.toThrow()
+    const { stdout: entries } = await execFileAsync('tar', ['-tzf', snapshot.archivePath])
+    expect(entries.split('\n').some(entry => entry.split('/').at(-1)?.startsWith('._') === true)).toBe(false)
     await removeGitWorkspaceSnapshot(snapshot)
   })
 
@@ -53,5 +57,50 @@ describe('Git workspace launch', () => {
     const directory = await mkdtemp(join(tmpdir(), 'dsh-blaxel-random-test-'))
     cleanup.add(directory)
     await expect(inspectGitWorkspace(directory)).rejects.toThrow('Git worktree')
+  })
+})
+
+describe('snapshot provenance transport', () => {
+  const snapshot = {
+    cwd: '/repo/packages/app',
+    repoRoot: '/repo',
+    relativeCwd: 'packages/app',
+    remoteCwd: '/workspace/packages/app',
+    archivePath: '/tmp/dsh-blaxel-x/workspace.tar.gz',
+    tempDir: '/tmp/dsh-blaxel-x',
+    fileCount: 42,
+    skippedSensitive: 2,
+    archiveBytes: 4096,
+    branch: 'main',
+    commit: 'a'.repeat(40),
+  }
+
+  it('round-trips the provenance the child cannot compute itself', () => {
+    expect(parseSnapshotMeta(snapshotMetaEnv(snapshot))).toEqual({
+      repoRoot: '/repo',
+      cwd: '/repo/packages/app',
+      remoteCwd: '/workspace/packages/app',
+      fileCount: 42,
+      skippedSensitive: 2,
+      archiveBytes: 4096,
+      branch: 'main',
+      commit: 'a'.repeat(40),
+    })
+  })
+
+  it('omits Git facts that were unavailable at snapshot time', () => {
+    const { branch: _branch, commit: _commit, ...detached } = snapshot
+    expect(parseSnapshotMeta(snapshotMetaEnv(detached))).toMatchObject({ fileCount: 42 })
+    expect(parseSnapshotMeta(snapshotMetaEnv(detached))?.branch).toBeUndefined()
+  })
+
+  it('rejects malformed, incomplete, and oversized provenance', () => {
+    expect(parseSnapshotMeta(undefined)).toBeUndefined()
+    expect(parseSnapshotMeta('not json')).toBeUndefined()
+    expect(parseSnapshotMeta('[]')).toBeUndefined()
+    expect(parseSnapshotMeta(JSON.stringify({ repoRoot: '/repo' }))).toBeUndefined()
+    expect(parseSnapshotMeta(JSON.stringify({ ...snapshot, fileCount: -1 }))).toBeUndefined()
+    expect(parseSnapshotMeta(JSON.stringify({ ...snapshot, cwd: 12 }))).toBeUndefined()
+    expect(parseSnapshotMeta(`"${'x'.repeat(20_000)}"`)).toBeUndefined()
   })
 })

@@ -3,8 +3,12 @@ import type { BlaxelHttpRequest, BlaxelHttpResponse } from './context.js'
 const ACTION_HEADER = 'x-dsh-blaxel-action'
 const API_PREFIX = '/blaxel/api/'
 const MAX_BODY_BYTES = 8 * 1024
+const LOCAL_ORIGIN = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/
 
-export type AuthorizedAction = 'check' | 'open' | 'close'
+export type AuthorizedAction =
+  | 'check' | 'open' | 'close' | 'move' | 'divergence' | 'sync-local' | 'configure' | 'workspace' | 'login' | 'logout' | 'test'
+  | 'oauth-start' | 'oauth-poll' | 'oauth-complete' | 'install-skills' | 'mcp-login' | 'mcp-logout'
+  | 'model-readiness' | 'model-credential'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -20,10 +24,14 @@ export function routeAction(req: BlaxelHttpRequest): string {
   return pathname.startsWith(API_PREFIX) ? pathname.slice(API_PREFIX.length) : ''
 }
 
-export function permitsAction(req: BlaxelHttpRequest, action: AuthorizedAction): boolean {
-  if (header(req, ACTION_HEADER) !== action) return false
+/** A same-origin read: no action header, but never a cross-site caller. */
+export function permitsRead(req: BlaxelHttpRequest): boolean {
   const origin = header(req, 'origin')
-  return origin === undefined || /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/.test(origin)
+  return origin === undefined || LOCAL_ORIGIN.test(origin)
+}
+
+export function permitsAction(req: BlaxelHttpRequest, action: AuthorizedAction): boolean {
+  return header(req, ACTION_HEADER) === action && permitsRead(req)
 }
 
 export function writeJson(res: BlaxelHttpResponse, status: number, body: unknown): void {
@@ -34,7 +42,7 @@ export function writeJson(res: BlaxelHttpResponse, status: number, body: unknown
   res.end(JSON.stringify(body))
 }
 
-export async function readWorkspaceCwd(req: BlaxelHttpRequest): Promise<string> {
+async function readJsonBody(req: BlaxelHttpRequest): Promise<Record<string, unknown>> {
   const body = await new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = []
     let bytes = 0
@@ -59,7 +67,87 @@ export async function readWorkspaceCwd(req: BlaxelHttpRequest): Promise<string> 
   } catch {
     throw new Error('Request body must be JSON')
   }
-  const cwd = isRecord(parsed) ? parsed.cwd : undefined
+  if (!isRecord(parsed)) throw new Error('Request body must be JSON')
+  return parsed
+}
+
+export async function readConfigurationRequest(req: BlaxelHttpRequest): Promise<{ defaults: unknown }> {
+  const body = await readJsonBody(req)
+  return { defaults: body.defaults }
+}
+
+export async function readWorkspaceRequest(req: BlaxelHttpRequest): Promise<{ workspace: unknown }> {
+  const body = await readJsonBody(req)
+  return { workspace: body.workspace }
+}
+
+export async function readLoginRequest(req: BlaxelHttpRequest): Promise<{ workspace: unknown; apiKey: unknown }> {
+  const body = await readJsonBody(req)
+  return { workspace: body.workspace, apiKey: body.apiKey }
+}
+
+export async function readBrowserLoginRequest(req: BlaxelHttpRequest): Promise<{ flowId: unknown; workspace?: unknown }> {
+  const body = await readJsonBody(req)
+  return { flowId: body.flowId, ...(body.workspace === undefined ? {} : { workspace: body.workspace }) }
+}
+
+export interface LaunchRequest {
+  cwd: string
+  title?: string
+}
+
+function workspaceCwd(body: Record<string, unknown>): string {
+  const cwd = body.cwd
   if (typeof cwd !== 'string' || cwd.length > 4096) throw new Error('A valid session workspace is required')
   return cwd
+}
+
+function sessionTitle(body: Record<string, unknown>): string | undefined {
+  const value = body.title
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.length > 500 || value.includes('\0')) throw new Error('A valid session title is required')
+  const title = value.trim()
+  return title === '' ? undefined : title
+}
+
+export async function readLaunchRequest(req: BlaxelHttpRequest): Promise<LaunchRequest> {
+  const body = await readJsonBody(req)
+  const title = sessionTitle(body)
+  return { cwd: workspaceCwd(body), ...(title === undefined ? {} : { title }) }
+}
+
+export async function readMoveRequest(req: BlaxelHttpRequest): Promise<LaunchRequest & { sessionId: string }> {
+  const body = await readJsonBody(req)
+  const cwd = workspaceCwd(body)
+  const sessionId = body.sessionId
+  if (
+    typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 512
+    || sessionId.includes('\0') || sessionId.includes('/') || sessionId.includes('\\')
+  ) {
+    throw new Error('A valid session id is required')
+  }
+  const title = sessionTitle(body)
+  return { cwd, sessionId, ...(title === undefined ? {} : { title }) }
+}
+
+export async function readSessionRequest(req: BlaxelHttpRequest): Promise<{ sessionId: string }> {
+  const body = await readJsonBody(req)
+  return { sessionId: sessionIdOf(body) }
+}
+
+function sessionIdOf(body: Record<string, unknown>): string {
+  const sessionId = body.sessionId
+  if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 512 || sessionId.includes('\0') || sessionId.includes('/') || sessionId.includes('\\')) {
+    throw new Error('A valid session id is required')
+  }
+  return sessionId
+}
+
+export async function readModelCredentialRequest(req: BlaxelHttpRequest): Promise<{ sessionId: string; credential: string }> {
+  const body = await readJsonBody(req)
+  const credential = body.credential
+  if (typeof credential !== 'string' || credential.trim() === '' || credential.length > 4096 || credential.includes('\0')) {
+    throw new Error('A valid model credential is required')
+  }
+  return { sessionId: sessionIdOf(body), credential: credential.trim() }
 }

@@ -1,5 +1,5 @@
 import { SENSITIVE_ENV_PATTERN } from '@deepseek-ai/dsh-subprocess'
-import { shellQuote } from '../runtime-service.js'
+import { shellQuote } from '../shared/shell.js'
 
 const SANDBOX_ENV_ALLOWLIST = new Set(['HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'PATH', 'SHELL', 'TERM', 'TMPDIR', 'USER'])
 
@@ -23,9 +23,23 @@ export function environmentFor(
   return result
 }
 
+/** `env -i` assignments, quoted so no value can be read as shell syntax. */
+export function envArgs(env: Record<string, string>): string {
+  return Object.entries(env).map(([key, value]) => shellQuote(`${key}=${value}`)).join(' ')
+}
+
+export function argvArgs(argv: readonly string[]): string {
+  return argv.map(shellQuote).join(' ')
+}
+
 export function argvCommand(argv: readonly string[], env: Record<string, string>, cwd: string, fifo?: string): string {
-  const envArgs = Object.entries(env).map(([key, value]) => shellQuote(`${key}=${value}`)).join(' ')
-  const args = argv.map(shellQuote).join(' ')
   const input = fifo === undefined ? ' </dev/null' : ` < ${shellQuote(fifo)}`
-  return `cd -- ${shellQuote(cwd)} && exec setsid env -i ${envArgs} ${args}${input}`
+  return [
+    `cd -- ${shellQuote(cwd)} &&`,
+    `child='';`,
+    `trap 'test -n "$child" && kill -TERM -"$child" 2>/dev/null; wait "$child" 2>/dev/null; exit 143' TERM INT HUP;`,
+    `setsid env -i ${envArgs(env)} ${argvArgs(argv)}${input} &`,
+    `child=$!;`,
+    `wait "$child"`,
+  ].join(' ')
 }
