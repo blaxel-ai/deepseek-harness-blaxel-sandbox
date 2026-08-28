@@ -2,13 +2,9 @@
 
 `@blaxel/dsh-sandbox` adds Blaxel-backed sessions to DeepSeek Harness (DSH). The DSH interface, model requests, session state, and Blaxel credentials stay on the host. Filesystem, Bash, terminal, and LSP operations for a sandbox session run in one short-lived Blaxel microVM.
 
-> This package is under development and has not been published.
-
 ## See it in action
 
-[![DeepSeek Harness session moving between a local workspace and a Blaxel sandbox](docs/assets/deepseek-harness-blaxel-preview.gif)](docs/assets/deepseek-harness-blaxel-preview-1080p.mp4)
-
-[Open the 1080p preview](docs/assets/deepseek-harness-blaxel-preview-1080p.mp4).
+![DeepSeek Harness session moving between a local workspace and a Blaxel sandbox](docs/assets/deepseek-harness-blaxel-preview.gif)
 
 ## Session architecture
 
