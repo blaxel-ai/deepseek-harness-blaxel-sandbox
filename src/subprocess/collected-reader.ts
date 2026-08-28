@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 import type { SubprocessCollect, SubprocessOutputReader } from '@deepseek-ai/dsh-subprocess'
-import type { BlaxelRuntime } from '../runtime-service.js'
+import type { BlaxelRuntime } from '../runtime/service.js'
 
 export class CollectedReader implements SubprocessOutputReader {
   private total = 0

@@ -1,38 +1,44 @@
 import type { BlaxelClientContext } from './context.js'
-import { BlaxelComposerAction } from './BlaxelComposerAction.js'
+import { BlaxelComposerAction, type BlaxelComposerActionProps } from './BlaxelComposerAction.js'
+import { BlaxelSandboxBanner } from './BlaxelSandboxBanner.js'
+import { BlaxelSidebarMarker } from './BlaxelSidebarMarker.js'
 import { BlaxelSettings } from './BlaxelSettings.js'
-import { getStatus } from './api.js'
 
-export const inject = ['slots', 'sessions']
+export const inject = ['slots', 'sessions', 'conversation']
+
+const BLOCK_PREFIX = 'Blaxel sandbox: '
 
 export function apply(ctx: BlaxelClientContext): void {
-  ctx.effect(() => {
-    let stopped = false
-    let unsubscribe: (() => void) | undefined
-    void getStatus().then((status) => {
-      if (stopped || status.mode !== 'blaxel') return
-      const openBootstrapSession = (): void => {
-        const list = ctx.sessions.list.getSnapshot()
-        const sessionId = list.ids.find(id => list.byId[id]?.blank === true && list.byId[id]?.cwd === (status.sandbox.sourceCwd ?? status.sandbox.cwd))
-        if (sessionId === undefined) return
-        if (list.current !== sessionId) ctx.sessions.open(sessionId)
-        unsubscribe?.()
-        unsubscribe = undefined
+  const setComposerBlock = (sessionId: string, reason?: string): void => {
+    const blocks = ctx.conversation.blocks
+    const current = blocks.storeFor(sessionId).getSnapshot()
+    if (reason !== undefined) {
+      if (current === undefined || current.reason.startsWith(BLOCK_PREFIX)) {
+        blocks.set(sessionId, { reason: `${BLOCK_PREFIX}${reason}` })
       }
-      unsubscribe = ctx.sessions.list.subscribe(openBootstrapSession)
-      openBootstrapSession()
-    }).catch(() => undefined)
-    return () => {
-      stopped = true
-      unsubscribe?.()
+      return
     }
-  }, 'blaxel bootstrap session selection')
+    if (current?.reason.startsWith(BLOCK_PREFIX) === true) blocks.set(sessionId, undefined)
+  }
+  const ComposerAction = (props: Omit<BlaxelComposerActionProps, 'openSession' | 'setComposerBlock'>): ReturnType<typeof BlaxelComposerAction> => (
+    BlaxelComposerAction({
+      ...props,
+      openSession: sessionId => ctx.sessions.open(sessionId),
+      setComposerBlock,
+    })
+  )
 
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
     name: 'conversation.input.right',
     id: 'blaxel-open',
     order: 90,
-  }, BlaxelComposerAction))
+  }, ComposerAction))
+
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: 'blaxel-sandbox-banner',
+    order: 80,
+  }, BlaxelSandboxBanner))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
@@ -40,4 +46,10 @@ export function apply(ctx: BlaxelClientContext): void {
     order: 240,
     label: 'Blaxel',
   }, BlaxelSettings))
+
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'blaxel-session-markers',
+    order: 0,
+  }, BlaxelSidebarMarker))
 }

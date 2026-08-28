@@ -1,21 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mapWorkspacePath, shellQuote } from '../src/index.js'
-import { environmentFor } from '../src/subprocess-service.js'
+import { argvCommand, environmentFor } from '../src/subprocess/environment.js'
 
 afterEach(() => vi.unstubAllEnvs())
 
-describe('dsh-blaxel', () => {
-  it('quotes POSIX arguments without interpolation', () => {
-    expect(shellQuote("a'b; $(touch /tmp/nope)\n")).toBe("'a'\"'\"'b; $(touch /tmp/nope)\n'")
-  })
-
-  it('maps source-worktree paths into the remote workspace only', () => {
-    expect(mapWorkspacePath('/Users/test/repo', '/workspace', '/Users/test/repo')).toBe('/workspace')
-    expect(mapWorkspacePath('/Users/test/repo', '/workspace', '/Users/test/repo/packages/app')).toBe('/workspace/packages/app')
-    expect(mapWorkspacePath('/Users/test/repo', '/workspace', '/Users/test/other')).toBe('/Users/test/other')
-    expect(mapWorkspacePath('/Users/test/repo', '/workspace', 'relative/file.ts')).toBe('relative/file.ts')
-  })
-
+describe('sandbox process environment', () => {
   it('uses the sandbox environment without forwarding inherited host values', () => {
     vi.stubEnv('PATH', '/host/bin')
     vi.stubEnv('CMUX_SOCKET_CAPABILITY', 'host-capability')
@@ -39,5 +27,14 @@ describe('dsh-blaxel', () => {
       PATH: '/usr/local/bin:/usr/bin',
       EXPLICIT: 'kept',
     })
+  })
+
+  it('waits portably for a new process session and forwards termination', () => {
+    const command = argvCommand(['npm', 'test'], { PATH: '/usr/bin' }, '/workspace')
+
+    expect(command).toContain("trap 'test -n \"$child\" && kill -TERM -\"$child\"")
+    expect(command).toContain("setsid env -i 'PATH=/usr/bin' 'npm' 'test' </dev/null &")
+    expect(command).toContain('child=$!; wait "$child"')
+    expect(command).not.toContain('setsid -w')
   })
 })

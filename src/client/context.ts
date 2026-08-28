@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 
 export interface ClientSessionListState {
   ids: string[]
-  byId: Record<string, { cwd?: string; blank: boolean } | undefined>
+  byId: Record<string, { cwd?: string; blank: boolean; displayTitle?: string } | undefined>
   current?: string
 }
 
@@ -12,6 +12,13 @@ export interface ClientSessions {
     subscribe(listener: () => void): () => void
   }
   open(sessionId: string): void
+}
+
+export interface ClientConversation {
+  blocks: {
+    set(sessionId: string, block: { reason: string } | undefined): void
+    storeFor(sessionId: string): { getSnapshot(): { reason: string } | undefined }
+  }
 }
 
 interface ClientSlots {
@@ -31,4 +38,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-export type BlaxelClientContext = Omit<Context, 'sessions'> & { sessions: ClientSessions }
+export type BlaxelClientContext = Omit<Context, 'sessions' | 'conversation'> & {
+  sessions: ClientSessions
+  conversation: ClientConversation
+}

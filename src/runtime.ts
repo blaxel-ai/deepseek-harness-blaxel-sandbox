@@ -1,1 +1,1 @@
-export { default } from './runtime-service.js'
+export { default } from './runtime/service.js'

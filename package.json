@@ -28,7 +28,11 @@
   },
   "packageManager": "pnpm@10.14.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"],
+    "onlyBuiltDependencies": [
+      "@deepseek-ai/dsh-subprocess-local",
+      "esbuild",
+      "node-pty"
+    ],
     "overrides": {
       "js-yaml": "4.3.1"
     }
@@ -51,6 +55,18 @@
     "./subprocess": {
       "types": "./dist/subprocess.d.ts",
       "import": "./dist/subprocess.js"
+    },
+    "./filesystem-routing": {
+      "types": "./dist/filesystem-routing.d.ts",
+      "import": "./dist/filesystem-routing.js"
+    },
+    "./subprocess-routing": {
+      "types": "./dist/subprocess-routing.d.ts",
+      "import": "./dist/subprocess-routing.js"
+    },
+    "./session-runtime": {
+      "types": "./dist/session-runtime.d.ts",
+      "import": "./dist/session-runtime.js"
     },
     "./web": {
       "types": "./dist/web.d.ts",
@@ -80,7 +96,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/build-client.mjs",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && node scripts/build-client.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && publint",
     "lint": "oxlint src tests scripts",
     "prepack": "pnpm build",
@@ -88,9 +104,19 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@apify/mcpc": "0.6.0",
     "@blaxel/core": "0.3.12",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-fs-local": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-fs-sandbox": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-mcp-client": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-sandbox-policy": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-subprocess-local": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-system-prompt": "0.1.0-rc.8",
     "@deepseek-ai/schemastery": "^3.18.1-rc.1",
-    "ws": "^8.21.3"
+    "skills": "1.5.23",
+    "ws": "^8.21.3",
+    "yaml": "^2.9.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -118,10 +144,13 @@
     "@deepseek-ai/dsh-invariants": "0.1.0-rc.8",
     "@deepseek-ai/dsh-llm": "0.1.0-rc.8",
     "@deepseek-ai/dsh-sandbox": "0.1.0-rc.8",
-    "@deepseek-ai/dsh-session": "0.1.0-rc.8",
     "@deepseek-ai/dsh-scope": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-session": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-session-persistence": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.0-rc.8",
     "@deepseek-ai/dsh-subprocess": "0.1.0-rc.8",
     "@deepseek-ai/dsh-timeout": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.8",
     "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.8",
     "@hey-api/openapi-ts": "^0.99.0",
     "@types/js-yaml": "^4.0.9",
@@ -132,9 +161,9 @@
     "esbuild": "^0.25.0",
     "js-yaml": "^4.2.0",
     "oxlint": "^1.11.2",
+    "publint": "^0.3.12",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "publint": "^0.3.12",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }

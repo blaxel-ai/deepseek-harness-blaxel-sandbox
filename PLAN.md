@@ -13,27 +13,29 @@ Develop `@blaxel/dsh-sandbox` in the standalone `blaxel-ai/deepseek-harness-blax
 - `@blaxel/dsh-sandbox/subprocess` implements `ctx.subprocess` against the same sandbox, including PTY sessions.
 - The package root is an installable `dsh.bundle` with `cordis.patch.yml`.
 
-The bundle can install into Web, TUI, and headless profiles, but installation never changes the default execution world. Local providers stay active unless a separate process starts with `DSH_BLAXEL_ACTIVE=1`.
+The bundle installs one session runtime plus filesystem and subprocess routers. Local and Blaxel-backed chats are ordinary native sessions in one DSH host. Each tool call selects its backend from the initiating session ID. No second DSH process, tab, page, or sidebar target model exists.
 
-Web exposes **Open in Blaxel** beside the chat input. It is enabled only for sessions inside a Git worktree. Clicking it snapshots tracked and unignored files, excludes common credential files, restores the repository under `/workspace`, and opens an isolated DSH window. The local session remains open and never switches execution providers in place.
-
-The Blaxel process disables host filesystem and subprocess providers, mounts the three Blaxel entries, and advertises `danger-full-access` only inside the remote microVM boundary. Absolute source-worktree paths are mapped to their `/workspace` equivalents at the provider boundary.
+Web exposes **Open in Sandbox** beside the chat input. It is enabled only for sessions inside a Git worktree. Clicking it snapshots tracked and unignored files, excludes common credential files, restores the repository under `/workspace`, and binds the current native session ID to the sandbox providers. A session with history moves in place, preserving its conversation, automatic title, sidebar row, and current-page selection.
 
 ## Current state
 
 - DeepSeek Harness currently directs external integrations to standalone `dsh-plugin` repositories and does not accept external pull requests.
 - Current upstream is `0.1.0-rc.8`. Its E2B family proves the runtime + filesystem + subprocess seam, while `@tensorlakeai/dsh-sandbox` proves the current one-package bundle and profile-install path.
 - Package consolidation is complete: one private `@blaxel/dsh-sandbox` package exposes default-only `/runtime`, `/filesystem`, and `/subprocess` Loader entries, ships `cordis.patch.yml`, and targets DSH `0.1.0-rc.8` plus `@blaxel/core@0.3.12`.
-- The Web and subprocess implementations are separated into focused lifecycle, HTTP, protocol, process, terminal, and transport modules.
-- Keyless lint, typecheck, 10 tests, build, publint, package contents, default-only packed imports, clean headless-profile installation, and `dsh --dump-config` pass.
-- The Web flow has been manually verified end to end: a Git worktree opened in a separate sandbox window, copied files were present under `/workspace`, common credential files were absent, Bash reported `/workspace`, host `DSH_*` and `BL_API_KEY` values were absent, the original session still ran locally, and teardown deleted the sandbox.
-- The provider implementation remains prototype code, not a release baseline. It does not yet satisfy every published subprocess, filesystem, terminal, or teardown contract. The formal opt-in live test remains separate from the manual Web proof.
+- Every provider is a folder of focused modules under `src/<provider>/`, with cross-provider helpers in `src/shared/`; the top-level `src/<provider>.ts` files are Loader entry shims only.
+- Web lists all running sandbox sessions in Settings. Sandbox-backed rows use an indented container marker in the native sidebar.
+- Web moves a session by atomically binding its existing ID to a Blaxel runtime. It does not read, rewrite, or copy persistence artifacts.
+- Keyless lint, typecheck, 84 tests, build, and publint pass for the single-host architecture.
+- The packed tarball installs into a clean Web profile, composes all five Blaxel rows, and boots the Web command when pnpm is given the three required native-build approvals documented in the README.
+- The earlier separate-process Web flow was manually verified, but that proof does not validate the replacement session router. Live native-session switching and remote routing still require verification.
+- Filesystem hardening now canonicalizes symlink aliases remotely, validates typed metadata and listings, bounds `readBytes` before transport, serializes each mutation once, publishes through a private sibling directory, preserves mode and CRLF edits, and uses atomic no-replace guarded creates. Streaming text still uses a whole-file SDK read.
+- The provider implementation remains prototype code, not a release baseline. It does not yet satisfy every published subprocess, terminal, streaming filesystem, or teardown contract. The formal opt-in live test remains separate from the manual Web proof.
 
 ## Required design
 
 ### Runtime owner
 
-- Default to `blaxel/node:latest`, `/workspace`, 4096 MB, and a bounded disposable lifetime.
+- Default to `blaxel/ts-app:latest`, `/workspace`, 4096 MB, and a bounded disposable lifetime.
 - Keep Blaxel credentials in the host SDK configuration. Never copy `BL_API_KEY`, `BL_WORKSPACE`, DSH variables, or credential-shaped host variables into the sandbox.
 - Create the cwd and a real, non-symlink `.dsh-blaxel` directory with mode `0700` before adapters activate.
 - Install and validate one small Node bridge used for byte-exact process transport and bounded file reads.
@@ -65,7 +67,10 @@ The Blaxel process disables host filesystem and subprocess providers, mounts the
 ## Product surfaces
 
 - The runtime, filesystem, subprocess, PTY, Bash, LSP, security, and cleanup behavior is shared across Web, TUI, and headless.
-- Web owns the current launch UX: a composer action validates the Git worktree and opens a separate process; Settings reports the active repository and owns reopen and stop controls. Terminal, previews, and richer logs remain future work.
+- Web owns the current launch UX: a composer action validates the Git worktree, creates a sandbox-backed native session, reports every launch step and file count, then selects the returned session ID in place. Settings lists and stops individual sandbox runtimes.
+- A move requires an idle source session. The host checks `session.list` both before provisioning and immediately before binding so a turn cannot change execution backends mid-flight.
+- Moving is one-way for now. The runtime binding is session-scoped and snapshot provenance retains the original local root, leaving a future reverse-sync-and-rebind operation isolated from session identity.
+- Divergence requires `git` inside the sandbox image and the baseline repository committed after the restore; while it is still being created, or when it failed, the panel states that instead of a number. Git-ignored paths are outside every report. Sandbox status fields are the values recorded at creation, not live platform state.
 - TUI uses shared human commands and lifecycle status; headless uses deterministic configuration and concise stderr output.
 - Documentation remains required for profile installation, `bl login`, security, lifecycle, and troubleshooting because a plugin cannot configure a profile before it is installed.
 - The plugin cannot add a top-level `dsh` launcher command, alter unloaded profiles, or safely swap global filesystem and subprocess providers during a running session.
@@ -83,12 +88,13 @@ The Blaxel process disables host filesystem and subprocess providers, mounts the
 
 ## Work sequence
 
-1. Harden the runtime owner and filesystem provider to the E2B/Tensorlake contract level.
+1. Finish runtime-owner and streaming-filesystem hardening to the E2B/Tensorlake contract level.
 2. Replace the prototype FIFO/log implementation with the sandbox-side process bridge and complete process-tree lifecycle tests.
 3. Complete the terminal WebSocket lifecycle and terminal-session quiescence tests.
-4. Add equivalent explicit launch and lifecycle commands for TUI and headless.
-5. Run the formal opt-in live composition, package/install smoke, documentation review, and release-readiness audit.
-6. Only after additional explicit approval: publish npm, update external trackers, and announce the integration.
+4. Verify session-ID filesystem/subprocess routing in one live DSH window, including a local session moved in place and continued end to end.
+5. Add equivalent explicit launch and lifecycle commands for TUI and headless.
+6. Run the formal opt-in live composition, package/install smoke, documentation review, and release-readiness audit.
+7. Only after additional explicit approval: publish npm, update external trackers, and announce the integration.
 
 ## Completion
 

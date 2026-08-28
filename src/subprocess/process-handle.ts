@@ -9,8 +9,8 @@ import type {
   SubprocessOutputMode,
   SubprocessSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
-import type { BlaxelRuntime } from '../runtime-service.js'
-import { shellQuote } from '../runtime-service.js'
+import type { BlaxelRuntime } from '../runtime/service.js'
+import { shellQuote } from '../shared/shell.js'
 import { CollectedReader } from './collected-reader.js'
 import { argvCommand, environmentFor } from './environment.js'
 

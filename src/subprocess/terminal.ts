@@ -10,9 +10,9 @@ import type {
   SubprocessTerminalSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
 import WebSocket from 'ws'
-import type { BlaxelRuntime } from '../runtime-service.js'
-import { shellQuote } from '../runtime-service.js'
-import { environmentFor } from './environment.js'
+import type { BlaxelRuntime } from '../runtime/service.js'
+import { shellQuote } from '../shared/shell.js'
+import { argvArgs, envArgs, environmentFor } from './environment.js'
 
 export class BlaxelTerminal implements SubprocessTerminalHandle {
   readonly output = new PassThrough()
@@ -79,7 +79,7 @@ export class BlaxelTerminal implements SubprocessTerminalHandle {
       socket.once('error', reject)
     })
     const env = environmentFor(await this.runtime.getSandboxEnvironment(), this.spec.env)
-    const command = `printf '%s' "$$" > ${shellQuote(this.stateFile)}; exec env -i ${Object.entries(env).map(([k, v]) => shellQuote(`${k}=${v}`)).join(' ')} ${this.spec.argv.map(shellQuote).join(' ')}\r`
+    const command = `printf '%s' "$$" > ${shellQuote(this.stateFile)}; exec env -i ${envArgs(env)} ${argvArgs(this.spec.argv)}\r`
     socket.on('message', data => {
       try {
         const frame = JSON.parse(String(data)) as { type?: string; data?: string }

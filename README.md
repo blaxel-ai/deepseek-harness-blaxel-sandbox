@@ -1,22 +1,37 @@
 # Blaxel Sandbox for DeepSeek Harness
 
-`@blaxel/dsh-sandbox` is a first-class Blaxel sandbox execution plugin for DeepSeek Harness (DSH). It moves filesystem, Bash, terminal, and LSP operations into one short-lived Blaxel microVM while the DSH interface, model requests, session state, and Blaxel credentials remain on the host.
+`@blaxel/dsh-sandbox` adds Blaxel-backed sessions to DeepSeek Harness (DSH). The DSH interface, model requests, session state, and Blaxel credentials stay on the host. Filesystem, Bash, terminal, and LSP operations for a sandbox session run in one short-lived Blaxel microVM.
 
-> This package is under development and has not been published. The current implementation is a prototype being raised to the DeepSeek Harness capability contracts.
+> This package is under development and has not been published.
 
-## How it composes
+## Session architecture
 
-The package is one installable DSH bundle with three internal providers:
+Local and sandbox sessions use the same DSH host, native session store, and sidebar:
 
-- `@blaxel/dsh-sandbox/runtime` owns sandbox creation, readiness, private adapter state, and deletion.
-- `@blaxel/dsh-sandbox/filesystem` provides remote `ctx.fs`.
-- `@blaxel/dsh-sandbox/subprocess` provides remote `ctx.subprocess`, including PTY sessions.
+```text
+DSH Web
+  +-- local session     -> local filesystem and subprocess providers
+  +-- cloud session     -> Blaxel filesystem and subprocess providers
+```
 
-Local execution remains unchanged after installation. In Web, **Open in Blaxel** appears beside the session chat input when the session directory is inside a Git worktree. It snapshots tracked files plus unignored untracked files, omits common credential files, restores the repository under `/workspace`, and opens a separate DSH window where all execution capabilities share the same remote filesystem and process world.
+The active native session ID selects the execution backend. The plugin never starts another DSH Web process, opens another tab, or navigates away from the current page.
+
+Sandbox sessions use an indented container marker so they are distinguishable in the normal sidebar. An empty session offers **Open in Sandbox**. A session with history offers **Move to Sandbox**, which atomically binds that same native session ID to Blaxel. Its conversation, automatic title, sidebar row, and current-page selection stay unchanged.
+
+## Profile installation
+
+After the package is published, install it into the DSH Web profile with the native helpers it requires:
+
+```sh
+dsh plugin --profile web add \
+  --allow-build=@deepseek-ai/dsh-subprocess-local \
+  --allow-build=koffi \
+  --allow-build=node-pty \
+  @blaxel/dsh-sandbox
+dsh web
+```
 
 ## Development installation
-
-The package is not published yet. Build the source checkout and link it into a DSH Web profile:
 
 ```sh
 git clone https://github.com/blaxel-ai/deepseek-harness-blaxel-sandbox.git
@@ -24,50 +39,53 @@ cd deepseek-harness-blaxel-sandbox
 pnpm install
 pnpm build
 dsh plugin --profile web link "$PWD"
-```
-
-Launch Web normally, open a session rooted anywhere inside a Git repository, then use **Open in Blaxel** beside the chat input:
-
-```sh
 dsh web
 ```
 
-The original local session stays open. The Blaxel window uses isolated session storage and maps the selected directory to the equivalent path under `/workspace`. Directories outside a Git worktree are rejected. TUI and headless launch controls remain planned work.
+Sign in from **Settings > Blaxel**, or authenticate on the host with `bl login YOUR-WORKSPACE`.
 
-## Authentication
+## Workspace launch
 
-Authenticate on the host with the Blaxel CLI:
+The launch action is available when the session directory is inside a Git worktree. It:
 
-```sh
-bl login YOUR-WORKSPACE
-```
+1. Lists tracked files and unignored untracked files.
+2. Excludes common credential and private-key paths.
+3. Creates a bounded archive without `.git` or `.dsh-blaxel` state.
+4. Restores the worktree under `/workspace` in a Blaxel sandbox.
+5. Binds the current native session ID to the remote providers.
+6. Keeps that session selected in the existing interface.
 
-CI may provide `BL_WORKSPACE` and `BL_API_KEY`. The plugin does not copy Blaxel credentials, `DSH_*` variables, or credential-shaped host environment variables into sandbox processes.
+The launch panel reports real file counts and the active phase. A failed launch stays in the current session with its error instead of creating an empty page.
+
+Before any sandbox is created, the plugin verifies that the session's selected model route is active and that its resolved credential is configured. If a writable credential is missing, the composer shows a secure provider-specific setup card. Saving the key writes it to the DSH host credential store, verifies the model again, and continues the original sandbox action. Model credentials are never returned to the browser or copied into the sandbox.
 
 ## Configuration
 
-The initial bundle supports host environment overrides:
-
 | Variable | Default | Purpose |
 |---|---:|---|
-| `DSH_BLAXEL_CWD` | `/workspace` | Remote working directory |
-| `DSH_BLAXEL_WORKSPACE_ROOT` | `/workspace` | Restored Git worktree root |
-| `DSH_BLAXEL_IMAGE` | `blaxel/node:latest` | Sandbox image |
+| `DSH_BLAXEL_IMAGE` | `blaxel/ts-app:latest` | Sandbox image |
 | `DSH_BLAXEL_MEMORY` | `4096` | Sandbox memory in MB |
+| `DSH_BLAXEL_REGION` | automatic | Sandbox region |
+| `DSH_BLAXEL_TTL` | platform default | Maximum lifetime from sandbox creation |
 
-The Blaxel settings page reports the active sandbox and provides reopen and stop controls.
+CI may provide `BL_WORKSPACE` and `BL_API_KEY`. Blaxel credentials and credential-shaped host environment variables are not copied into sandbox processes.
+
+## Blaxel Settings
+
+The Blaxel settings section provides browser OAuth with workspace selection, existing CLI profile switching, and sandbox defaults verified against the active account's memory and TTL quotas, workspace regions, and available Hub images. Official Blaxel skills and OAuth-connected resource MCP status stay at the top. API-key login remains available as an advanced fallback.
+
+It also lists every running sandbox session with its session ID, runtime name, remote workspace, uptime, state, and owned tool-process count. Stopping one sandbox removes its remote runtime binding without closing or replacing the DSH page.
 
 ## Development
 
-Requirements: Node.js 22.19+ or 24+, pnpm 10, and no Blaxel credentials for keyless checks.
+Keyless verification:
 
 ```sh
-pnpm install
 pnpm check
 pnpm pack
 ```
 
-The live test is opt-in and creates a real Blaxel sandbox:
+The opt-in live test creates a real sandbox:
 
 ```sh
 DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts
@@ -78,10 +96,9 @@ Do not run the live test without authorization to use the target Blaxel workspac
 ## Security and lifecycle
 
 - Blaxel authentication remains host-side.
-- DSH receives `danger-full-access` only inside the disposable remote microVM boundary.
-- Host filesystem, subprocess, and host sandbox wrappers are disabled only in the separate Blaxel process.
-- Git-ignored files and common credential files such as `.env`, `.npmrc`, private keys, and credential JSON files are omitted from workspace snapshots.
-- The runtime deletes its owned sandbox during DSH teardown and surfaces cleanup failures.
-- No local fallback occurs when sandbox setup or transport fails.
-
-See [`PLAN.md`](./PLAN.md) for the implementation and verification gates.
+- Local sessions retain DSH's local sandbox policy.
+- Sandbox sessions route to the remote filesystem and subprocess providers. A failed remote operation never falls back to the host.
+- Git-ignored files and common credential files such as `.env`, `.npmrc`, private keys, and credential JSON are omitted from workspace snapshots.
+- A running turn cannot be moved into a sandbox session.
+- Moving is one-way for now. Snapshot provenance retains the original local root so a future explicit reverse-sync flow can be added without changing session identity.
+- Each runtime is deleted only when stopped. Restarting DSH reconnects the same native session to its existing sandbox.
