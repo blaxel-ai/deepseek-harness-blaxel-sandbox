@@ -4,9 +4,11 @@
 
 > This package is under development and has not been published.
 
-## Launch film
+## See it in action
 
-[Watch the 1080p DeepSeek Harness × Blaxel launch film](docs/assets/deepseek-harness-blaxel-launch-1080p.mp4).
+[![DeepSeek Harness session moving between a local workspace and a Blaxel sandbox](docs/assets/deepseek-harness-blaxel-preview.gif)](docs/assets/deepseek-harness-blaxel-preview-1080p.mp4)
+
+[Open the 1080p preview](docs/assets/deepseek-harness-blaxel-preview-1080p.mp4).
 
 ## Session architecture
 
