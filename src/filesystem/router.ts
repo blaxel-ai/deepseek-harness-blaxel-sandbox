@@ -13,6 +13,7 @@ import type {
   FsWriteOutcome,
 } from '@deepseek-ai/dsh-fs'
 import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
+import { sandboxRoutingSession } from '../session-runtime/routing-session.js'
 
 /** Selects the filesystem backend by the session driving the current tool call. */
 export class RoutingFileSystem extends FileSystem {
@@ -21,7 +22,7 @@ export class RoutingFileSystem extends FileSystem {
   }
 
   private backend(): FileSystem {
-    const sessionId = String(this.ctx.agents.currentInitiator()?.id ?? '') || undefined
+    const sessionId = sandboxRoutingSession(this.ctx.agents, this.ctx.blaxelSessions, this.ctx.agents.currentInitiator())
     const remote = this.ctx.blaxelSessions.get(sessionId)
     if (remote !== undefined) return remote.fs
     if (this.ctx.blaxelSessions.isSandboxSession(sessionId)) throw new Error('This sandbox session is stopped; start a new sandbox session to continue')

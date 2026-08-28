@@ -88,4 +88,17 @@ describe('moving sandbox changes locally', () => {
     })).rejects.toThrow('symbolic link')
     expect(await readlink(join(root, 'link'))).toBe('feature.txt')
   })
+
+  it('rejects copy metadata that could inherit a host symbolic-link mode', async () => {
+    const root = await repository()
+    await symlink('feature.txt', join(root, 'link'))
+    await execFileAsync('git', ['-C', root, 'add', 'link'])
+    await execFileAsync('git', ['-C', root, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '-m', 'add link'])
+    const text = 'diff --git a/link b/id_rsa\nsimilarity index 100%\ncopy from link\ncopy to id_rsa\n'
+
+    await expect(applySandboxPatch(root, {
+      commit: 'sandbox-baseline', text, bytes: Buffer.byteLength(text), truncated: false, checkedAt: new Date().toISOString(),
+    })).rejects.toThrow('copy or rename')
+    await expect(readFile(join(root, 'id_rsa'), 'utf8')).rejects.toThrow()
+  })
 })

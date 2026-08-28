@@ -207,7 +207,7 @@ export class BlaxelDivergence {
     const stdout = await this.exec('patch', [
       'set -o pipefail',
       `${pair} add -A -N >/dev/null 2>&1 || true`,
-      `${pair} diff --binary ${shellQuote(baseline.commit)} | head -c ${String(cap)} | base64 -w0`,
+      `${pair} diff --binary --no-renames ${shellQuote(baseline.commit)} | head -c ${String(cap)} | base64 -w0`,
     ].join('; '))
     return {
       commit: baseline.commit,

@@ -49,10 +49,14 @@ describe('remote subprocess routing', () => {
     const remote = { resolveExecutable: remoteResolve } as unknown as SubprocessRuntime
     const local = { resolveExecutable: localResolve } as unknown as SubprocessRuntime
     const ctx = {
-      agents: { currentInitiator: () => ({ id: 'sandbox-session' }) },
+      agents: {
+        currentInitiator: () => ({ id: 'sandbox-session' }),
+        list: () => [{ id: 'sandbox-session' }],
+        isOwnedBy: () => false,
+      },
       blaxelSessions: {
         get: (sessionId: string | undefined) => sessionId === 'sandbox-session' ? { subprocess: remote } : undefined,
-        isSandboxSession: () => false,
+        isSandboxSession: (sessionId: string | undefined) => sessionId === 'sandbox-session',
       },
     } as unknown as Context
 

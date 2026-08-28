@@ -10,12 +10,16 @@ const execFileAsync = promisify(execFile)
 const MAX_GIT_OUTPUT_BYTES = 4 * 1024 * 1024
 const MODE_HEADER = /^(?:new file mode|deleted file mode|old mode|new mode)[ \t]+([0-7]+)/
 const INDEX_HEADER = /^index[ \t]+[0-9a-f]+\.\.[0-9a-f]+[ \t]+([0-7]+)/i
+const TRANSFER_HEADER = /^(?:copy|rename)[ \t]+(?:from|to)(?:[ \t]|$)/
 const SYMLINK_MODE = 0o120000
 const TYPE_MASK = 0o170000
 
 /** A guest patch must never introduce or rewrite a host-followed symlink. */
 export function assertSafeSandboxPatch(text: string): void {
   for (const line of text.split('\n')) {
+    if (TRANSFER_HEADER.test(line)) {
+      throw new Error('Sandbox changes include a copy or rename, so nothing was applied locally')
+    }
     const encoded = MODE_HEADER.exec(line)?.[1] ?? INDEX_HEADER.exec(line)?.[1]
     if (encoded !== undefined && (Number.parseInt(encoded, 8) & TYPE_MASK) === SYMLINK_MODE) {
       throw new Error('Sandbox changes include a symbolic link, so nothing was applied locally')
