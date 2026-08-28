@@ -101,4 +101,18 @@ describe('moving sandbox changes locally', () => {
     })).rejects.toThrow('copy or rename')
     await expect(readFile(join(root, 'id_rsa'), 'utf8')).rejects.toThrow()
   })
+
+  it('does not apply a path-changing diff without transfer metadata from a host symbolic link', async () => {
+    const root = await repository()
+    await symlink('feature.txt', join(root, 'link'))
+    await execFileAsync('git', ['-C', root, 'add', 'link'])
+    await execFileAsync('git', ['-C', root, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '-m', 'add link'])
+    const text = 'diff --git a/link b/id_rsa\n--- a/link\n+++ b/id_rsa\n@@ -1 +1 @@\n-feature.txt\n+/etc/passwd\n'
+
+    await expect(applySandboxPatch(root, {
+      commit: 'sandbox-baseline', text, bytes: Buffer.byteLength(text), truncated: false, checkedAt: new Date().toISOString(),
+    })).rejects.toThrow()
+    await expect(readFile(join(root, 'id_rsa'), 'utf8')).rejects.toThrow()
+    expect(await readlink(join(root, 'link'))).toBe('feature.txt')
+  })
 })
