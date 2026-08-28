@@ -4,6 +4,10 @@
 
 > This package is under development and has not been published.
 
+## Launch film
+
+[Watch the 1080p DeepSeek Harness × Blaxel launch film](docs/assets/deepseek-harness-blaxel-launch-1080p.mp4).
+
 ## Session architecture
 
 Local and sandbox sessions use the same DSH host, native session store, and sidebar:
