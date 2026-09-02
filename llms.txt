@@ -38,7 +38,7 @@ dsh web
 ## Current contract
 
 - Package version: 0.1.0, not yet published.
-- DSH package contract: 0.1.0-rc.8 components with @deepseek-ai/cordis 4.x.
+- DSH package contract: 0.1.1-rc.2 components with @deepseek-ai/cordis 4.x.
 - Default image: blaxel/ts-app:latest.
 - Default memory: 4096 MB.
 - Default region: automatic.

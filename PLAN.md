@@ -20,13 +20,13 @@ Web exposes **Open on Blaxel** beside the chat input. It is enabled only for ses
 ## Current state
 
 - DeepSeek Harness currently directs external integrations to standalone `dsh-plugin` repositories and does not accept external pull requests.
-- The tested package contract is DSH `0.1.0-rc.8`. Compatibility with newer DSH releases must be checked separately before widening the dependency range.
-- Package consolidation is complete: one private `@blaxel/dsh-sandbox` package exposes default-only `/runtime`, `/filesystem`, and `/subprocess` Loader entries, ships `cordis.patch.yml`, and targets DSH `0.1.0-rc.8` plus `@blaxel/core@0.3.12`.
+- The tested package contract is DSH `0.1.1-rc.2`. Compatibility with newer DSH releases must be checked separately before widening the dependency range.
+- Package consolidation is complete: one private `@blaxel/dsh-sandbox` package exposes default-only `/runtime`, `/filesystem`, and `/subprocess` Loader entries, ships `cordis.patch.yml`, and targets DSH `0.1.1-rc.2` plus `@blaxel/core@0.3.12`.
 - Every provider is a folder of focused modules under `src/<provider>/`, with cross-provider helpers in `src/shared/`; the top-level `src/<provider>.ts` files are Loader entry shims only.
 - Web lists all running sandbox sessions in Settings. Sandbox-backed rows use an indented container marker in the native sidebar.
 - Web moves a session by atomically binding its existing ID to a Blaxel runtime. It does not read, rewrite, or copy persistence artifacts.
 - Keyless lint, typecheck, 85 tests, build, and publint pass for the single-host architecture.
-- The packed tarball installs into clean DSH `0.1.0-rc.8` Web profiles on Node 22 and 24, composes all five Blaxel rows, and boots the Web command on Node 22 when pnpm receives the three documented native-build approvals.
+- The packed tarball installs into clean DSH `0.1.1-rc.2` Web profiles on Node 22 and 24, composes all five Blaxel rows, and boots the Web command on Node 22 when pnpm receives the three documented native-build approvals.
 - A real Calibrator journey moved one native session into Blaxel, returned a nonzero patch to the original worktree, moved into a fresh sandbox, survived host restarts, and passed the full sandbox check.
 - The formal opt-in live test passes filesystem, bounded reads, guarded writes, symlink identity, subprocess output, stdin, PTY, termination, and sandbox deletion on `blaxel/ts-app:latest`.
 - An explicit `DSH_HOME` now isolates persisted Blaxel bindings. A clean profile cannot reconnect machine-wide sandbox sessions.
@@ -85,12 +85,12 @@ Web exposes **Open on Blaxel** beside the chat input. It is enabled only for ses
 4. Terminal coverage for bootstrap suppression, exact argv/env, foreground signals, background descendants, transport failure, allocation races, and service disposal.
 5. A real Loader/profile composition test that exercises the shipped `cordis.patch.yml`, not hand-mounted services.
 6. An opt-in live Blaxel test that runs filesystem, Bash, multi-message stdin, and PTY in one sandbox, then verifies deletion.
-7. `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `publint`, `pnpm pack`, a clean-profile install, and `dsh --dump-config` against DSH `0.1.0-rc.8` on Node 22 and 24.
+7. `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `publint`, `pnpm pack`, a clean-profile install, and `dsh --dump-config` against DSH `0.1.1-rc.2` on Node 22 and 24.
 8. Public-repository hygiene scan for credentials, private URLs, local paths, generated residue, and machine-specific data.
 
 ## Work sequence
 
-1. Check compatibility before widening the package beyond the tested DSH `0.1.0-rc.8` contract.
+1. The package contract was re-verified on DSH `0.1.1-rc.2` with the full check, the opt-in live test, and a clean-profile install.
 2. After explicit approval, remove the private package guard, publish npm, and create the matching GitHub tag and release.
 3. After the release is public, reconcile external trackers and prepare marketplace or announcement work through their own approval gates.
 
