@@ -2,6 +2,8 @@
 
 Date: 2026-08-25
 
+Note: this report predates the 0.1.0 label rename. `Open in Sandbox` is now **Open on Blaxel**, `Move to Sandbox` is **Move to Blaxel**, `Running in Blaxel` is **Running on Blaxel**, `Move to local` is **Return to local**, and `Discard sandbox` is **Discard**.
+
 Status: Complete. The same native session moved local to sandbox, returned a nonzero patch to the original worktree, moved back to a fresh sandbox, survived host restarts, and passed the full Calibrator check on the new Debian/glibc default.
 
 ## Goal
