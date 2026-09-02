@@ -9,10 +9,10 @@ describe.skipIf(!enabled)('Blaxel live DSH seams', () => {
     const ctx = new Context()
     const owner = await ctx.plugin(BlaxelRuntime, {
       name: `dsh-live-${Date.now().toString(36)}`,
-      image: 'blaxel/node:latest',
+      image: 'blaxel/ts-app:latest',
       cwd: '/workspace',
       memory: 4096,
-      region: 'us-pdx-1',
+      region: process.env.BL_REGION ?? 'us-pdx-1',
       ttl: '10m',
     })
     const fs = await ctx.plugin(BlaxelFileSystem)

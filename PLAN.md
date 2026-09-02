@@ -2,7 +2,7 @@
 
 ## Goal
 
-Ship one Blaxel-owned, out-of-tree DeepSeek Harness bundle that moves filesystem, Bash, terminal, and LSP execution into one disposable Blaxel sandbox without changing DeepSeek Harness.
+Ship one Blaxel-owned, out-of-tree DeepSeek Harness bundle that moves filesystem, Bash, and terminal execution into one disposable Blaxel sandbox without changing DeepSeek Harness.
 
 ## Delivery shape
 
@@ -15,21 +15,23 @@ Develop `@blaxel/dsh-sandbox` in the standalone `blaxel-ai/deepseek-harness-blax
 
 The bundle installs one session runtime plus filesystem and subprocess routers. Local and Blaxel-backed chats are ordinary native sessions in one DSH host. Each tool call selects its backend from the initiating session ID. No second DSH process, tab, page, or sidebar target model exists.
 
-Web exposes **Open in Sandbox** beside the chat input. It is enabled only for sessions inside a Git worktree. Clicking it snapshots tracked and unignored files, excludes common credential files, restores the repository under `/workspace`, and binds the current native session ID to the sandbox providers. A session with history moves in place, preserving its conversation, automatic title, sidebar row, and current-page selection.
+Web exposes **Open on Blaxel** beside the chat input. It is enabled only for sessions inside a Git worktree. Clicking it snapshots tracked and unignored files, excludes common credential files, restores the repository under `/workspace`, and binds the current native session ID to the sandbox providers. A session with history moves in place, preserving its conversation, automatic title, sidebar row, and current-page selection.
 
 ## Current state
 
 - DeepSeek Harness currently directs external integrations to standalone `dsh-plugin` repositories and does not accept external pull requests.
-- Current upstream is `0.1.0-rc.8`. Its E2B family proves the runtime + filesystem + subprocess seam, while `@tensorlakeai/dsh-sandbox` proves the current one-package bundle and profile-install path.
-- Package consolidation is complete: one private `@blaxel/dsh-sandbox` package exposes default-only `/runtime`, `/filesystem`, and `/subprocess` Loader entries, ships `cordis.patch.yml`, and targets DSH `0.1.0-rc.8` plus `@blaxel/core@0.3.12`.
+- The tested package contract is DSH `0.1.1-rc.2`. Compatibility with newer DSH releases must be checked separately before widening the dependency range.
+- Package consolidation is complete: one private `@blaxel/dsh-sandbox` package exposes default-only `/runtime`, `/filesystem`, and `/subprocess` Loader entries, ships `cordis.patch.yml`, and targets DSH `0.1.1-rc.2` plus `@blaxel/core@0.3.12`.
 - Every provider is a folder of focused modules under `src/<provider>/`, with cross-provider helpers in `src/shared/`; the top-level `src/<provider>.ts` files are Loader entry shims only.
 - Web lists all running sandbox sessions in Settings. Sandbox-backed rows use an indented container marker in the native sidebar.
 - Web moves a session by atomically binding its existing ID to a Blaxel runtime. It does not read, rewrite, or copy persistence artifacts.
-- Keyless lint, typecheck, 84 tests, build, and publint pass for the single-host architecture.
-- The packed tarball installs into a clean Web profile, composes all five Blaxel rows, and boots the Web command when pnpm is given the three required native-build approvals documented in the README.
-- The earlier separate-process Web flow was manually verified, but that proof does not validate the replacement session router. Live native-session switching and remote routing still require verification.
+- Keyless lint, typecheck, 85 tests, build, and publint pass for the single-host architecture.
+- The packed tarball installs into clean DSH `0.1.1-rc.2` Web profiles on Node 22 and 24, composes all five Blaxel rows, and boots the Web command on Node 22 when pnpm receives the three documented native-build approvals.
+- A real Calibrator journey moved one native session into Blaxel, returned a nonzero patch to the original worktree, moved into a fresh sandbox, survived host restarts, and passed the full sandbox check.
+- The formal opt-in live test passes filesystem, bounded reads, guarded writes, symlink identity, subprocess output, stdin, PTY, termination, and sandbox deletion on `blaxel/ts-app:latest`.
+- An explicit `DSH_HOME` now isolates persisted Blaxel bindings. A clean profile cannot reconnect machine-wide sandbox sessions.
 - Filesystem hardening now canonicalizes symlink aliases remotely, validates typed metadata and listings, bounds `readBytes` before transport, serializes each mutation once, publishes through a private sibling directory, preserves mode and CRLF edits, and uses atomic no-replace guarded creates. Streaming text still uses a whole-file SDK read.
-- The provider implementation remains prototype code, not a release baseline. It does not yet satisfy every published subprocess, terminal, streaming filesystem, or teardown contract. The formal opt-in live test remains separate from the manual Web proof.
+- The Web integration is release-tested but remains private and unpublished. npm publication, a GitHub release, marketplace submission, tracker updates, and announcements are separate approval-gated steps.
 
 ## Required design
 
@@ -66,12 +68,12 @@ Web exposes **Open in Sandbox** beside the chat input. It is enabled only for se
 
 ## Product surfaces
 
-- The runtime, filesystem, subprocess, PTY, Bash, LSP, security, and cleanup behavior is shared across Web, TUI, and headless.
+- The runtime, filesystem, subprocess, PTY, Bash, security, and cleanup modules are reusable across profiles. The tested launch and lifecycle surface is DSH Web.
 - Web owns the current launch UX: a composer action validates the Git worktree, creates a sandbox-backed native session, reports every launch step and file count, then selects the returned session ID in place. Settings lists and stops individual sandbox runtimes.
 - A move requires an idle source session. The host checks `session.list` both before provisioning and immediately before binding so a turn cannot change execution backends mid-flight.
-- Moving is one-way for now. The runtime binding is session-scoped and snapshot provenance retains the original local root, leaving a future reverse-sync-and-rebind operation isolated from session identity.
+- Moving is an explicit round trip. `Return to local` checks and applies a bounded patch to the original worktree, deletes that sandbox, and keeps the same native session local. A later move creates a fresh sandbox from the current worktree.
 - Divergence requires `git` inside the sandbox image and the baseline repository committed after the restore; while it is still being created, or when it failed, the panel states that instead of a number. Git-ignored paths are outside every report. Sandbox status fields are the values recorded at creation, not live platform state.
-- TUI uses shared human commands and lifecycle status; headless uses deterministic configuration and concise stderr output.
+- TUI and headless launch commands are outside the tested Web release surface.
 - Documentation remains required for profile installation, `bl login`, security, lifecycle, and troubleshooting because a plugin cannot configure a profile before it is installed.
 - The plugin cannot add a top-level `dsh` launcher command, alter unloaded profiles, or safely swap global filesystem and subprocess providers during a running session.
 
@@ -82,20 +84,16 @@ Web exposes **Open in Sandbox** beside the chat input. It is enabled only for se
 3. Subprocess contract coverage for exact argv/env, multi-write stdin, raw byte output, collect/spill bounds, background descendants, aborts, TERM-to-KILL escalation, transport loss, and disposal aggregation.
 4. Terminal coverage for bootstrap suppression, exact argv/env, foreground signals, background descendants, transport failure, allocation races, and service disposal.
 5. A real Loader/profile composition test that exercises the shipped `cordis.patch.yml`, not hand-mounted services.
-6. An opt-in live Blaxel test that runs filesystem, Bash, multi-message stdin, PTY, and LSP in one sandbox, then verifies deletion.
-7. `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `publint`, `pnpm pack`, a clean-profile install, and `dsh --dump-config` against DSH `0.1.0-rc.8` on Node 22 and 24.
+6. An opt-in live Blaxel test that runs filesystem, Bash, multi-message stdin, and PTY in one sandbox, then verifies deletion.
+7. `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `publint`, `pnpm pack`, a clean-profile install, and `dsh --dump-config` against DSH `0.1.1-rc.2` on Node 22 and 24.
 8. Public-repository hygiene scan for credentials, private URLs, local paths, generated residue, and machine-specific data.
 
 ## Work sequence
 
-1. Finish runtime-owner and streaming-filesystem hardening to the E2B/Tensorlake contract level.
-2. Replace the prototype FIFO/log implementation with the sandbox-side process bridge and complete process-tree lifecycle tests.
-3. Complete the terminal WebSocket lifecycle and terminal-session quiescence tests.
-4. Verify session-ID filesystem/subprocess routing in one live DSH window, including a local session moved in place and continued end to end.
-5. Add equivalent explicit launch and lifecycle commands for TUI and headless.
-6. Run the formal opt-in live composition, package/install smoke, documentation review, and release-readiness audit.
-7. Only after additional explicit approval: publish npm, update external trackers, and announce the integration.
+1. The package contract was re-verified on DSH `0.1.1-rc.2` with the full check, the opt-in live test, and a clean-profile install.
+2. After explicit approval, remove the private package guard, publish npm, and create the matching GitHub tag and release.
+3. After the release is public, reconcile external trackers and prepare marketplace or announcement work through their own approval gates.
 
 ## Completion
 
-The integration is complete only when a clean DSH profile installs one Blaxel bundle, one real session uses file tools, Bash, PTY, and LSP inside the same Blaxel sandbox, every owned process and terminal is quiescent at shutdown, the sandbox is deleted, all package gates pass, and the public npm/repository state is verified.
+The Web integration's functional gates are complete when a clean DSH profile installs one Blaxel bundle, one real session uses file tools, Bash, and PTY inside the same Blaxel sandbox, every owned process and terminal is quiescent at shutdown, the sandbox is deleted, and all package gates pass. Public release is complete only after npm, the GitHub tag and release, and the intended tracker state are verified.

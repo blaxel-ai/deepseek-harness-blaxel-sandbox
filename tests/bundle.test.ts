@@ -62,6 +62,9 @@ describe('installable bundle', () => {
     expect(manifest.exports).toHaveProperty('./client')
     expect(manifest.files).toContain('dist')
     expect(manifest.files).toContain('cordis.patch.yml')
+    expect(manifest.files).toContain('GUIDE.md')
+    expect(manifest.files).toContain('llms.txt')
+    expect(manifest.files).toContain('docs/calibrator-roundtrip-dogfood.md')
   })
 
   it('keeps Loader modules default-only', async () => {

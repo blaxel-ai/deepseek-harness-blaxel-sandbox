@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type { SnapshotMeta } from '../web/workspace-snapshot.js'
 
 const FORMAT_VERSION = 1
@@ -11,6 +11,7 @@ const WORKSPACE_NAME = SANDBOX_NAME
 
 export interface PersistedSandboxBinding {
   sessionId: string
+  title?: string
   sandboxName: string
   cwd: string
   workspaceRoot: string
@@ -26,9 +27,19 @@ interface BindingDocument {
   bindings: PersistedSandboxBinding[]
 }
 
-export function defaultBindingStorePath(): string {
-  const configHome = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config')
-  return process.env.DSH_BLAXEL_BINDINGS_PATH ?? join(configHome, 'deepseek-harness', 'blaxel-sandbox-bindings.json')
+function expandHome(path: string): string {
+  if (path === '~') return homedir()
+  if (path.startsWith('~/') || path.startsWith('~\\')) return join(homedir(), path.slice(2))
+  return path
+}
+
+export function defaultBindingStorePath(env: NodeJS.ProcessEnv = process.env): string {
+  const explicit = env.DSH_BLAXEL_BINDINGS_PATH?.trim()
+  if (explicit) return explicit
+  const dshHome = env.DSH_HOME?.trim()
+  if (dshHome) return join(resolve(expandHome(dshHome)), 'blaxel-sandbox-bindings.json')
+  const configHome = env.XDG_CONFIG_HOME ?? join(homedir(), '.config')
+  return join(configHome, 'deepseek-harness', 'blaxel-sandbox-bindings.json')
 }
 
 function finiteNonNegative(value: unknown): value is number {
@@ -63,6 +74,7 @@ function parseBinding(value: unknown): PersistedSandboxBinding | undefined {
   const item = value as Record<string, unknown>
   const provenance = parseProvenance(item.provenance)
   if (typeof item.sessionId !== 'string' || !SESSION_ID.test(item.sessionId)) return undefined
+  if (item.title !== undefined && (typeof item.title !== 'string' || item.title.length > 500 || item.title.includes('\0'))) return undefined
   if (typeof item.sandboxName !== 'string' || !SANDBOX_NAME.test(item.sandboxName)) return undefined
   if (!absolutePath(item.cwd) || !absolutePath(item.workspaceRoot) || !absolutePath(item.sourceRoot)) return undefined
   if (!finiteNonNegative(item.startedAt) || typeof item.workspace !== 'string' || !WORKSPACE_NAME.test(item.workspace)) return undefined
@@ -70,6 +82,7 @@ function parseBinding(value: unknown): PersistedSandboxBinding | undefined {
   if (provenance === undefined) return undefined
   return {
     sessionId: item.sessionId,
+    ...(typeof item.title === 'string' && item.title.trim() !== '' ? { title: item.title.trim() } : {}),
     sandboxName: item.sandboxName,
     cwd: item.cwd,
     workspaceRoot: item.workspaceRoot,

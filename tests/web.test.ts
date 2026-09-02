@@ -98,7 +98,7 @@ describe('Blaxel Web routing', () => {
     expect(createSession).toHaveBeenCalledWith(expect.objectContaining({
       payload: { workspaceId: 'workspace-repo', sessionId: 'local-session' },
     }))
-    expect(bind).toHaveBeenCalledWith(prepared, 'local-session')
+    expect(bind).toHaveBeenCalledWith(prepared, 'local-session', 'Repository work')
     expect(rename).not.toHaveBeenCalled()
   })
 
@@ -140,7 +140,7 @@ describe('Blaxel Web routing', () => {
     await route.handler(request('move', { cwd: process.cwd(), sessionId: 'local-session' }), target.res)
     expect(target.status()).toBe(200)
     expect(target.body()).toEqual({ ok: true, sessionId: 'local-session' })
-    expect(bind).toHaveBeenCalledWith(prepared, 'local-session')
+    expect(bind).toHaveBeenCalledWith(prepared, 'local-session', undefined)
     expect(fork).not.toHaveBeenCalled()
   })
 

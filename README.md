@@ -1,10 +1,12 @@
 # Blaxel Sandbox for DeepSeek Harness
 
-`@blaxel/dsh-sandbox` adds Blaxel-backed sessions to DeepSeek Harness (DSH). The DSH interface, model requests, session state, and Blaxel credentials stay on the host. Filesystem, Bash, terminal, and LSP operations for a sandbox session run in one short-lived Blaxel microVM.
+`@blaxel/dsh-sandbox` adds Blaxel-backed sessions to DeepSeek Harness (DSH). The DSH interface, model requests, session state, and Blaxel credentials stay on the host. Filesystem, Bash, and terminal operations for a sandbox session run in one short-lived Blaxel microVM.
+
+Use [GUIDE.md](GUIDE.md) for account setup, session round trips, recovery, security, and troubleshooting. Agents and coding assistants can use [llms.txt](llms.txt) for the concise machine-readable contract.
 
 ## See it in action
 
-![DeepSeek Harness session moving between a local workspace and a Blaxel sandbox](docs/assets/deepseek-harness-blaxel-preview.gif)
+![DeepSeek Harness session moving between a local workspace and a Blaxel sandbox](https://raw.githubusercontent.com/blaxel-ai/deepseek-harness-blaxel-sandbox/main/docs/assets/deepseek-harness-blaxel-preview.gif)
 
 ## Session architecture
 
@@ -18,7 +20,7 @@ DSH Web
 
 The active native session ID selects the execution backend. The plugin never starts another DSH Web process, opens another tab, or navigates away from the current page.
 
-Sandbox sessions use an indented container marker so they are distinguishable in the normal sidebar. An empty session offers **Open in Sandbox**. A session with history offers **Move to Sandbox**, which atomically binds that same native session ID to Blaxel. Its conversation, automatic title, sidebar row, and current-page selection stay unchanged.
+Sandbox sessions use an indented container marker so they are distinguishable in the normal sidebar. An empty session offers **Open on Blaxel**. A session with history offers **Move to Blaxel**, which atomically binds that same native session ID to Blaxel. Its conversation, automatic title, sidebar row, and current-page selection stay unchanged.
 
 ## Profile installation
 
@@ -102,5 +104,5 @@ Do not run the live test without authorization to use the target Blaxel workspac
 - Sandbox sessions route to the remote filesystem and subprocess providers. A failed remote operation never falls back to the host.
 - Git-ignored files and common credential files such as `.env`, `.npmrc`, private keys, and credential JSON are omitted from workspace snapshots.
 - A running turn cannot be moved into a sandbox session.
-- Moving is one-way for now. Snapshot provenance retains the original local root so a future explicit reverse-sync flow can be added without changing session identity.
+- Moving is an explicit round trip, not continuous synchronization. `Return to local` conflict-checks sandbox changes against the original worktree, applies them only when safe, stops that sandbox, and keeps the same DSH session local. The session can later move into a fresh sandbox again.
 - Each runtime is deleted only when stopped. Restarting DSH reconnects the same native session to its existing sandbox.

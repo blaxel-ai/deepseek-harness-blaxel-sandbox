@@ -1,0 +1,140 @@
+# Blaxel Sandbox for DeepSeek Harness
+
+@blaxel/dsh-sandbox adds Blaxel-backed tool execution to ordinary DeepSeek Harness Web sessions. DSH Web, conversations, model requests, model credentials, Blaxel authentication, and session persistence remain on the host. Filesystem, Bash, and terminal operations for a bound session run in one Blaxel sandbox under /workspace.
+
+## Fast route
+
+1. Read README.md, then GUIDE.md.
+2. Install @blaxel/dsh-sandbox into the DSH Web profile or link this repository for development.
+3. Start dsh web.
+4. Open Settings > Blaxel, sign in with the browser, select a workspace, and test the connection.
+5. Install or update Blaxel skills and connect Blaxel resource tools when those agent capabilities are needed.
+6. Choose only the sandbox image, memory, region, and maximum lifetime offered by Settings.
+7. Open a directory inside a Git worktree and use Open on Blaxel or Move to Blaxel.
+8. Use Return to local before discarding a sandbox whose changes must be kept.
+
+## Install commands
+
+After npm publication:
+
+```bash
+dsh plugin --profile web add \
+  --allow-build=@deepseek-ai/dsh-subprocess-local \
+  --allow-build=koffi \
+  --allow-build=node-pty \
+  @blaxel/dsh-sandbox
+dsh web
+```
+
+Development link:
+
+```bash
+pnpm install
+pnpm build
+dsh plugin --profile web link "$PWD"
+dsh web
+```
+
+## Current contract
+
+- Package version: 0.1.0, not yet published.
+- DSH package contract: 0.1.1-rc.2 components with @deepseek-ai/cordis 4.x.
+- Default image: blaxel/ts-app:latest.
+- Default memory: 4096 MB.
+- Default region: automatic.
+- Default maximum lifetime: Blaxel platform default.
+- Session identity: the native DSH session ID is the routing key and does not change during a move.
+- Sandbox workspace: /workspace, or the matching subdirectory when DSH starts below the Git root.
+- Source snapshot: tracked files plus unignored untracked files, excluding .git, .dsh-blaxel, common credentials, private keys, and Git-ignored files.
+- Model readiness: the selected model route and host credential must be ready before sandbox creation.
+- Remote failure behavior: fail closed; never fall back to host filesystem or subprocess execution.
+- Restart behavior: reconnect the same native session to its persisted sandbox binding.
+- Return behavior: conflict-check and apply a bounded Git patch to the original worktree, delete that sandbox, then resume local tools in the same session.
+- Synchronization model: explicit round trips, not continuous bidirectional synchronization.
+
+## Authentication
+
+- Preferred path: Settings > Blaxel > Sign in to Blaxel.
+- Existing bl login profiles are reusable and selectable.
+- CI or managed hosts may set BL_WORKSPACE plus BL_API_KEY, BL_CLIENT_CREDENTIALS, or Blaxel-host identity.
+- Environment-managed authentication is read-only in Settings; restart DSH to change it.
+- Running sandboxes permit same-workspace credential refresh only. Workspace switching and sign-out are locked.
+- Blaxel and model credentials stay on the DSH host and are not copied into the sandbox.
+
+## Sandbox defaults
+
+- Settings verifies choices against the active workspace before saving.
+- DSH_BLAXEL_IMAGE sets the initial image.
+- DSH_BLAXEL_MEMORY sets initial memory in MB.
+- DSH_BLAXEL_REGION sets the initial region.
+- DSH_BLAXEL_TTL sets the initial maximum lifetime, for example 4h or 7d.
+- Saved defaults apply only to new sandboxes.
+
+## Session actions
+
+- Open on Blaxel: create a sandbox for an empty native session.
+- Move to Blaxel: bind an idle native session with history to a new sandbox.
+- Running on Blaxel: identify a sandbox-backed session and open its exact Blaxel Console page.
+- Return to local: inspect divergence, confirm, check and apply the remote patch, stop the sandbox, and route future tools locally.
+- Discard: stop the sandbox and lose remote changes not already transferred.
+
+## Proof rules
+
+- A container marker in the ordinary sidebar identifies a sandbox session, including a failed persisted binding.
+- The Running on Blaxel strip identifies the sandbox-backed session and links to its Blaxel Console detail page.
+- /workspace in tool output proves the remote workspace path.
+- A successful remote Read, Glob, and Bash probe proves the routed filesystem and subprocess seams.
+- A successful Return to local with a nonzero changed-file count proves the sandbox-to-worktree path.
+- The same DSH session ID, title, and row before and after movement prove session continuity.
+- Transcript success alone does not prove that a command ran in Blaxel.
+
+## Safety
+
+- Do not run the opt-in live test without authorization to create a Blaxel sandbox.
+- Wait for the active DSH turn and owned sandbox processes before moving.
+- Never use Discard when remote changes must be kept.
+- Return to local fails without local mutation on conflicts, truncated patches, oversized patches, or unsafe symbolic-link targets.
+- Snapshot limits are 100,000 files, 512 MiB source, and 256 MiB compressed.
+- Automatic return patches are limited to 1 MiB.
+- Blaxel resource-tool authorization state and proxy credentials remain host-side.
+
+## Recovery
+
+- After a DSH restart, persisted bindings reconnect to the existing sandbox and immutable baseline.
+- If OAuth expired, use Reconnect account for the already-bound workspace.
+- If Return to local conflicts, resolve the local worktree conflict and retry while keeping the sandbox.
+- If an automatic patch is unsupported or oversized, do not discard the sandbox until its changes are preserved or reduced.
+- A sandbox tool error never causes local fallback.
+
+## Verification commands
+
+```bash
+pnpm check
+pnpm pack
+```
+
+Billable opt-in live check:
+
+```bash
+DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts
+```
+
+## Key files
+
+- README.md: product overview and shortest installation path.
+- GUIDE.md: complete setup, movement, recovery, security, limits, and troubleshooting.
+- docs/calibrator-roundtrip-dogfood.md: end-to-end user journey and runtime evidence.
+- cordis.patch.yml: DSH Web profile integration.
+- src/session-runtime/service.ts: sandbox creation, binding, recovery, movement, and deletion.
+- src/web/workspace-snapshot.ts: bounded Git worktree snapshot and sensitive-path screening.
+- src/web/divergence.ts: immutable-baseline divergence and bounded patch creation.
+- src/web/local-sync.ts: conflict-checked sandbox patch application to the original worktree.
+- src/blaxel-settings.ts: authentication and workspace-verified defaults.
+- src/blaxel-capabilities.ts: Blaxel skills and resource-tools MCP integration.
+- tests/live.test.ts: opt-in real Blaxel sandbox proof.
+
+## References
+
+- https://github.com/blaxel-ai/deepseek-harness-blaxel-sandbox
+- https://docs.blaxel.ai
+- https://github.com/deepseek-ai/DeepSeek-Harness

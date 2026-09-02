@@ -73,7 +73,7 @@ export function BlaxelLaunchPanel(props: BlaxelLaunchPanelProps): ReactNode {
   const done = props.progress.step === 'ready'
   return <section aria-label="Sandbox launch progress" style={panel}>
     <div style={head}>
-      <span>{props.progress.kind === 'move' ? 'Moving this session to a sandbox' : 'Opening this repository in a sandbox'}</span>
+      <span>{props.progress.kind === 'move' ? 'Moving this session to Blaxel' : 'Opening this repository on Blaxel'}</span>
     </div>
     <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
       {lines.map(entry => <li key={entry.step} style={{ ...line, opacity: entry.state === 'waiting' ? 0.5 : 1 }}>

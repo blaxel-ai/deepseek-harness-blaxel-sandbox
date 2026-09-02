@@ -94,6 +94,7 @@ export interface SnapshotProvenance {
 
 export interface SandboxSessionStatus {
   sessionId: string
+  title?: string
   workspace: string
   environment: 'production' | 'development'
   state: 'creating' | 'restoring' | 'ready' | 'failed'
