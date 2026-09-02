@@ -1,7 +1,6 @@
 {
   "name": "@blaxel/dsh-sandbox",
   "version": "0.1.0",
-  "private": true,
   "description": "Blaxel sandbox execution plugin for DeepSeek Harness (DSH)",
   "keywords": [
     "agent-sandbox",
@@ -80,6 +79,7 @@
     "dist",
     "cordis.patch.yml",
     "README.md",
+    "CHANGELOG.md",
     "GUIDE.md",
     "llms.txt",
     "docs/calibrator-roundtrip-dogfood.md",
