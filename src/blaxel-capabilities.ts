@@ -65,6 +65,7 @@ function commandRedactions(args: readonly string[]): string[] {
 
 export class BlaxelCapabilitiesManager {
   private mcpFiber?: Fiber
+  private proxyStarted = false
   private restoring?: Promise<void>
   private skillFreshnessCache?: { expiresAt: number; value: Pick<BlaxelCapabilitiesStatus['skills'], 'upToDate' | 'checkError'> }
 
@@ -120,7 +121,10 @@ export class BlaxelCapabilitiesManager {
   async disconnectMcp(): Promise<BlaxelCapabilitiesStatus> {
     await this.mcpFiber?.dispose()
     this.mcpFiber = undefined
-    await this.runMcpc(['close', MCP_SESSION], 30_000, true)
+    if (this.proxyStarted) {
+      await this.runMcpc(['close', MCP_SESSION], 30_000, true)
+      this.proxyStarted = false
+    }
     await this.runMcpc(['logout', MCP_ENDPOINT, '--profile', MCP_PROFILE], 30_000, true)
     await this.save({})
     return await this.status()
@@ -129,7 +133,10 @@ export class BlaxelCapabilitiesManager {
   async dispose(): Promise<void> {
     await this.mcpFiber?.dispose().catch(() => undefined)
     this.mcpFiber = undefined
-    await this.runMcpc(['close', MCP_SESSION], 30_000, true)
+    if (this.proxyStarted) {
+      await this.runMcpc(['close', MCP_SESSION], 30_000, true)
+      this.proxyStarted = false
+    }
   }
 
   private async restoreSaved(): Promise<void> {
@@ -153,6 +160,7 @@ export class BlaxelCapabilitiesManager {
       proxyBearerToken,
       '--json',
     ], 60_000)
+    this.proxyStarted = true
   }
 
   private async mountMcp(proxyBearerToken: string): Promise<void> {

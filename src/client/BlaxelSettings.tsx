@@ -22,7 +22,7 @@ import {
   type BrowserLoginState,
 } from './api.js'
 import { SandboxIcon } from './BlaxelSidebarMarker.js'
-import { formatDuration } from './format.js'
+import { sandboxConsoleUrl } from './BlaxelSandboxBanner.js'
 
 const card: CSSProperties = {
   background: 'var(--dsw-alias-bg-layer-1, #1f1f1f)',
@@ -85,40 +85,56 @@ function StatusPill(props: { ok: boolean; children: ReactNode }): ReactNode {
   return <span style={{ alignItems: 'center', background: 'var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.08))', border: '1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.18))', borderRadius: 999, color: 'var(--dsw-alias-label-secondary, #aaa)', display: 'inline-flex', fontSize: 12, fontWeight: 600, gap: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}><span aria-hidden="true" style={{ background: color, borderRadius: '50%', height: 6, width: 6 }} />{props.children}</span>
 }
 
+function runningFor(ms: number): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000))
+  if (minutes < 60) return `${String(minutes)} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${String(hours)} ${hours === 1 ? 'hr' : 'hrs'}`
+  const days = Math.floor(hours / 24)
+  return `${String(days)} ${days === 1 ? 'day' : 'days'}`
+}
+
+function sandboxSummary(item: SandboxSessionStatus): string {
+  const state = item.state === 'ready' ? 'Ready' : item.state === 'failed' ? 'Needs attention' : 'Starting'
+  const elapsed = item.state === 'ready' ? `Running for ${runningFor(item.sandbox.uptimeMs)}` : `${runningFor(item.sandbox.uptimeMs)} elapsed`
+  const processes = item.live.processes === 0
+    ? ''
+    : ` · ${String(item.live.processes)} tool ${item.live.processes === 1 ? 'process' : 'processes'} active`
+  return `${state} · ${elapsed}${processes}`
+}
+
 function SandboxCard(props: {
   sandbox: SandboxSessionStatus
   onMoveLocal: (sessionId: string) => Promise<void>
   onStop: (sessionId: string) => Promise<void>
 }): ReactNode {
   const [stopping, setStopping] = useState(false)
-  const [moving, setMoving] = useState(false)
+  const [returning, setReturning] = useState(false)
   const item = props.sandbox
+  const returnDisabled = returning || stopping || item.state !== 'ready' || item.live.processes > 0
+  const consoleUrl = sandboxConsoleUrl(item.workspace, item.sandbox.name, item.environment)
   return <div style={{ borderTop: '1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.18))', padding: '13px 0 2px' }}>
-    <div style={{ alignItems: 'center', display: 'flex', gap: 7, fontWeight: 600 }}><SandboxIcon /> {item.sandbox.name}</div>
-    <div style={{ ...muted, marginTop: 4 }}>{item.state} · {formatDuration(item.sandbox.uptimeMs)} · {String(item.live.processes)} active tool processes</div>
+    <div style={{ alignItems: 'center', display: 'flex', gap: 7, fontWeight: 600 }}><SandboxIcon /> {item.title ?? 'Blaxel sandbox'}</div>
+    <div style={{ ...muted, marginTop: 4 }}>{sandboxSummary(item)}</div>
     {item.error === undefined ? null : <div style={{ color: 'var(--dsw-alias-state-warn-label, #dd8629)', fontSize: 12, marginTop: 4 }}>{item.error}</div>}
-    <div style={{ ...muted, marginTop: 8 }}>Session <code>{item.sessionId}</code><br />Workspace <code>{item.sandbox.cwd}</code></div>
+    <details style={{ marginTop: 8 }}>
+      <summary style={{ ...muted, cursor: 'pointer', width: 'fit-content' }}>Technical details</summary>
+      <div style={{ ...muted, marginTop: 6 }}>Sandbox <code>{item.sandbox.name}</code><br />Blaxel workspace <code>{item.workspace}</code><br />Session ID <code>{item.sessionId}</code></div>
+    </details>
     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
-      <button type="button" style={button} disabled={moving || stopping || item.state !== 'ready'} onClick={() => {
-        setMoving(true)
-        void props.onMoveLocal(item.sessionId).finally(() => setMoving(false))
-      }}>{moving ? 'Moving…' : 'Move to local'}</button>
-      <button data-variant="danger" type="button" style={dangerButton} disabled={moving || stopping} onClick={() => {
-        if (!window.confirm('Stop this sandbox and discard any changes that have not been moved locally?')) return
+      <a href={consoleUrl} rel="noreferrer" style={{ ...button, alignItems: 'center', display: 'inline-flex', textDecoration: 'none' }} target="_blank">Open in Blaxel</a>
+      <button type="button" style={button} disabled={returnDisabled} title={item.live.processes > 0 ? 'Wait for active tool processes to finish' : undefined} onClick={() => {
+        setReturning(true)
+        void props.onMoveLocal(item.sessionId).finally(() => setReturning(false))
+      }}>{returning ? 'Returning…' : 'Return to local'}</button>
+      <button data-variant="danger" type="button" style={dangerButton} disabled={returning || stopping} onClick={() => {
+        if (!window.confirm('Discard this sandbox? Any changes not returned to local will be permanently lost.')) return
         setStopping(true)
         void props.onStop(item.sessionId).finally(() => setStopping(false))
-      }}>{stopping ? 'Stopping…' : 'Discard sandbox'}</button>
+      }}>{stopping ? 'Discarding…' : 'Discard'}</button>
     </div>
   </div>
 }
-
-const sourceNames = {
-  'api-key-environment': 'API key environment',
-  'client-credentials-environment': 'client credentials environment',
-  'blaxel-host': 'Blaxel host identity',
-  cli: 'Blaxel CLI',
-  none: 'not connected',
-} as const
 
 export function BlaxelSettings(): ReactNode {
   const [status, setStatus] = useState<Status>()
@@ -205,7 +221,7 @@ export function BlaxelSettings(): ReactNode {
   }
 
   const stop = async (sessionId: string): Promise<void> => {
-    await run('stop', 'Sandbox stopped.', async () => await closeBlaxel(sessionId))
+    await run('stop', 'Sandbox discarded.', async () => await closeBlaxel(sessionId))
   }
 
   const moveLocal = async (sessionId: string): Promise<void> => {
@@ -215,9 +231,15 @@ export function BlaxelSettings(): ReactNode {
     try {
       const divergence = await inspectBlaxelChanges(sessionId)
       const label = divergence.changed === 1 ? '1 changed file' : `${String(divergence.changed)} changed files`
-      if (!window.confirm(`Apply ${label} to the original local worktree, stop this sandbox, and continue this same session locally? Conflicting local files will block safely.`)) return
+      const message = divergence.changed === 0
+        ? 'Return this session to local? The sandbox will stop and the session will continue in its original worktree.'
+        : `Return this session to local? ${label} will be applied to the original worktree, then the sandbox will stop. If local files conflict, nothing will change.`
+      if (!window.confirm(message)) return
       const result = await moveBlaxelChangesLocal(sessionId)
-      setNotice(`${String(result.divergence.changed)} sandbox ${result.divergence.changed === 1 ? 'change' : 'changes'} applied locally. Future tools run on the local worktree.`)
+      const applied = result.divergence.changed === 0
+        ? 'No sandbox changes needed to be applied.'
+        : `${String(result.divergence.changed)} ${result.divergence.changed === 1 ? 'change was' : 'changes were'} applied locally.`
+      setNotice(`Returned to local. ${applied}`)
       await refresh()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -289,34 +311,18 @@ export function BlaxelSettings(): ReactNode {
       [data-blaxel-settings] button:disabled { background: var(--dsw-alias-button-primary-dimmed, rgba(127, 127, 127, 0.12)) !important; border-color: var(--dsw-alias-border-l1, transparent) !important; color: var(--dsw-alias-label-caption, #888) !important; cursor: not-allowed !important; opacity: 1; }
     `}</style>
     <h2 style={{ fontSize: 18, margin: '0 0 5px' }}>Blaxel</h2>
-    <p style={{ ...muted, fontSize: 13, margin: '0 0 18px' }}>Connect your workspace, choose sandbox defaults, and manage running cloud sessions here.</p>
+    <p style={{ ...muted, fontSize: 13, margin: '0 0 18px' }}>Connect your account, configure new sandboxes, and manage sessions running on Blaxel.</p>
 
     <section style={card}>
-      <SectionTitle title="Agent capabilities" detail="Official Blaxel skills and authenticated resource tools used by DSH agents." />
-      <div style={{ alignItems: 'center', display: 'flex', gap: 12, justifyContent: 'space-between', paddingBottom: 13 }}>
-        <div><strong style={{ fontSize: 13 }}>Blaxel skills</strong><div style={muted}>{skills?.upToDate === true ? 'Blaxel CLI and SDK guidance is current.' : skills?.installed === true ? skills.checkError ?? 'A newer skill version is available.' : 'Install the official Blaxel agent skills.'}</div></div>
-        {skills?.upToDate === true
-          ? <StatusPill ok>Up to date</StatusPill>
-          : <button data-variant={skills?.installed === true ? undefined : 'primary'} type="button" style={skills?.installed === true ? button : primaryButton} disabled={busy !== undefined} onClick={() => void run('skills', 'Blaxel skills are up to date.', installBlaxelSkills)}>{busy === 'skills' ? 'Updating…' : skills?.installed === true ? 'Update' : 'Install'}</button>}
-      </div>
-      <div style={{ alignItems: 'center', borderTop: '1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.18))', display: 'flex', gap: 12, justifyContent: 'space-between', paddingTop: 13 }}>
-        <div><strong style={{ fontSize: 13 }}>Resource MCP</strong><div style={muted}>{mcp?.connected === true ? 'Blaxel resources are available to agents through OAuth.' : 'Connect Blaxel resource tools with browser OAuth.'}</div></div>
-        {mcp?.connected === true
-          ? <div style={{ alignItems: 'center', display: 'flex', gap: 8 }}><StatusPill ok>Connected</StatusPill><button type="button" style={{ ...button, padding: '5px 8px' }} disabled={busy !== undefined} onClick={() => void run('mcp-logout', 'Blaxel MCP disconnected.', disconnectBlaxelMcp)}>{busy === 'mcp-logout' ? 'Disconnecting…' : 'Disconnect'}</button></div>
-          : <button data-variant="primary" type="button" style={primaryButton} disabled={busy !== undefined} onClick={() => void run('mcp-login', 'Blaxel MCP connected.', connectBlaxelMcp)}>{busy === 'mcp-login' ? 'Waiting for browser…' : 'Connect with OAuth'}</button>}
-      </div>
-    </section>
-
-    <section style={card}>
-      <SectionTitle title="Account" detail="Sign in with Blaxel, then select a workspace. The same secure profile is shared with the Blaxel CLI." />
+      <SectionTitle title="Blaxel account" detail="Sign in and choose the workspace used for new sandboxes." />
       {connection === undefined ? <div style={muted}>Checking connection…</div> : <>
         <div style={{ alignItems: 'center', display: 'flex', gap: 9, marginBottom: 13 }}>
-          <span aria-hidden="true" style={{ background: connection.authenticated ? '#42c77a' : '#777', borderRadius: '50%', height: 8, width: 8 }} />
-          <strong>{connection.authenticated ? connection.workspace : 'Not connected'}</strong>
-          <span style={muted}>{connection.environment} · {sourceNames[connection.source]}</span>
+          <StatusPill ok={connection.authenticated}>{connection.authenticated ? 'Connected' : 'Not connected'}</StatusPill>
+          {connection.authenticated ? <strong>{connection.workspace}</strong> : null}
+          {connection.environment === 'development' ? <span style={muted}>Development environment</span> : null}
         </div>
-        {connection.managedByEnvironment ? <div style={{ ...muted, marginBottom: 12 }}>Authentication is supplied by the DSH process environment. Restart DSH with different BL_* values to change it.</div> : null}
-        {running > 0 && !connection.managedByEnvironment ? <div style={{ ...muted, marginBottom: 12 }}>You can reconnect {connection.workspace} while sandbox sessions are running. Switching workspaces and signing out remain locked.</div> : null}
+        {connection.managedByEnvironment ? <div style={{ ...muted, marginBottom: 12 }}>This account is managed by the DSH process environment. Restart DSH to change it.</div> : null}
+        {running > 0 && !connection.managedByEnvironment ? <div style={{ ...muted, marginBottom: 12 }}>You can reconnect this workspace while sandboxes are running. Switching workspaces and signing out are unavailable.</div> : null}
         {connection.profiles.length > 0 ? <div style={{ marginBottom: 12 }}>
           <div style={{ alignItems: 'end', display: 'grid', gap: 8, gridTemplateColumns: 'minmax(0, 1fr) auto' }}>
             <label style={label}>Workspace
@@ -324,10 +330,10 @@ export function BlaxelSettings(): ReactNode {
                 {connection.profiles.map(profile => <option key={profile} value={profile}>{profile}</option>)}
               </select>
             </label>
-            <button type="button" style={button} disabled={authLocked || busy !== undefined || workspace === connection.workspace} onClick={() => void run('workspace', `Using ${workspace}.`, async () => await switchBlaxelWorkspace(workspace))}>{busy === 'workspace' ? 'Switching…' : 'Use workspace'}</button>
+            <button type="button" style={button} disabled={authLocked || busy !== undefined || workspace === connection.workspace} onClick={() => void run('workspace', `Switched to ${workspace}.`, async () => await switchBlaxelWorkspace(workspace))}>{busy === 'workspace' ? 'Switching…' : 'Switch workspace'}</button>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button type="button" style={button} disabled={!connection.authenticated || busy !== undefined} onClick={() => void run('test', 'Connection verified.', testBlaxelConnection)}>{busy === 'test' ? 'Testing…' : 'Test connection'}</button>
+            <button type="button" style={button} disabled={!connection.authenticated || busy !== undefined} onClick={() => void run('test', 'Connection verified.', testBlaxelConnection)}>{busy === 'test' ? 'Verifying…' : 'Verify connection'}</button>
             <button type="button" style={button} disabled={authLocked || !connection.authenticated || busy !== undefined || connection.workspace === undefined} onClick={() => {
               const currentWorkspace = connection.workspace
               if (currentWorkspace !== undefined) void run('logout', `${currentWorkspace} signed out.`, async () => await logoutBlaxel(currentWorkspace))
@@ -343,15 +349,15 @@ export function BlaxelSettings(): ReactNode {
             </label>
             <button data-variant="primary" type="button" style={primaryButton} disabled={browserWorkspace === '' || busy !== undefined} onClick={() => void finishBrowserLogin()}>{busy === 'oauth-complete' ? 'Connecting…' : 'Use workspace'}</button>
           </div> : <div style={{ alignItems: 'center', display: 'flex', gap: 8 }}>
-            <button data-variant="primary" type="button" style={primaryButton} disabled={connection.managedByEnvironment || busy !== undefined} onClick={() => void startBrowserLogin()}>{busy === 'oauth' ? 'Waiting for browser…' : running > 0 ? 'Reconnect account' : connection.authenticated ? 'Add account' : 'Sign in with browser'}</button>
+            <button data-variant={connection.authenticated ? undefined : 'primary'} type="button" style={connection.authenticated ? button : primaryButton} disabled={connection.managedByEnvironment || busy !== undefined} onClick={() => void startBrowserLogin()}>{busy === 'oauth' ? 'Waiting for browser…' : running > 0 ? 'Reconnect account' : connection.authenticated ? 'Add account' : 'Sign in to Blaxel'}</button>
             {browserLogin?.state === 'waiting' && browserLogin.authorizationUrl !== undefined ? <a href={browserLogin.authorizationUrl} rel="noreferrer" style={{ ...muted, color: '#7da7ff' }} target="_blank">Open sign-in page</a> : null}
           </div>}
           <details style={{ marginTop: 12 }}>
             <summary style={{ ...muted, cursor: 'pointer' }}>Use an API key instead</summary>
             <form onSubmit={event => void connect(event)} style={{ display: 'grid', gap: 10, gridTemplateColumns: 'minmax(150px, 1fr) minmax(220px, 2fr) auto', paddingTop: 10 }}>
               <label style={label}>Workspace<input autoComplete="off" required style={input} placeholder="workspace-name" value={newWorkspace} disabled={running > 0} onChange={event => setNewWorkspace(event.target.value)} /></label>
-              <label style={label}>API key<input autoComplete="off" required style={input} type="password" placeholder="Paste once" value={apiKey} disabled={running > 0} onChange={event => setApiKey(event.target.value)} /></label>
-              <button type="submit" style={{ ...button, alignSelf: 'end' }} disabled={running > 0 || busy !== undefined}>{busy === 'login' ? 'Connecting…' : 'Connect'}</button>
+              <label style={label}>API key<input autoComplete="off" required style={input} type="password" placeholder="Paste API key" value={apiKey} disabled={running > 0} onChange={event => setApiKey(event.target.value)} /></label>
+              <button type="submit" style={{ ...button, alignSelf: 'end' }} disabled={running > 0 || busy !== undefined}>{busy === 'login' ? 'Connecting…' : 'Connect workspace'}</button>
             </form>
           </details>
         </div> : null}
@@ -359,11 +365,11 @@ export function BlaxelSettings(): ReactNode {
     </section>
 
     <section style={card}>
-      <SectionTitle title="New sandbox defaults" detail="Only options available to the active workspace are shown. Existing sessions keep their current resources." />
+      <SectionTitle title="Sandbox defaults" detail="Used for new sessions on Blaxel. Running sessions are unchanged." />
       <form onSubmit={event => void saveDefaults(event)} style={{ display: 'grid', gap: 12 }}>
-        {defaultsVerified ? <div style={{ alignItems: 'center', display: 'flex', gap: 8 }}><StatusPill ok>Verified</StatusPill><span style={muted}>{choices.workspace}{choices.plan === undefined ? '' : ` · ${choices.plan.replaceAll('_', ' ')}`}{choices.tier === undefined ? '' : ` · ${choices.tier.replace('_', ' ')}`}{choices.maxMemory === undefined ? '' : ` · up to ${choices.maxMemory < 1024 ? `${String(choices.maxMemory)} MB` : `${String(choices.maxMemory / 1024)} GB`}`}</span></div> : null}
+        {defaultsVerified ? <div style={{ alignItems: 'center', display: 'flex', gap: 8 }}><StatusPill ok>Options loaded</StatusPill><span style={muted}>{choices.workspace}{choices.maxMemory === undefined ? '' : ` · Up to ${choices.maxMemory < 1024 ? `${String(choices.maxMemory)} MB` : `${String(choices.maxMemory / 1024)} GB`} memory`}</span></div> : null}
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '2fr 1fr' }}>
-          <label style={label}>Container image
+          <label style={label}>Sandbox image
             <select disabled={!defaultsVerified} required style={input} value={defaults.image} onChange={event => { setEditingDefaults(true); setDefaults({ ...defaults, image: event.target.value }) }}>
               {choices.images.map(item => <option disabled={item.available === false} key={item.value} value={item.value}>{item.label}</option>)}
             </select>
@@ -384,15 +390,31 @@ export function BlaxelSettings(): ReactNode {
             </select>
           </label>
         </div>
-        {!connection?.authenticated ? <div style={muted}>Connect a workspace to load and verify its sandbox options.</div> : status?.settings.choices?.unavailable === undefined ? null : <div style={muted}>Workspace options could not be verified: {status.settings.choices.unavailable}</div>}
+        {!connection?.authenticated ? <div style={muted}>Connect a workspace to load its sandbox options.</div> : status?.settings.choices?.unavailable === undefined ? null : <div style={muted}>Could not load workspace options: {status.settings.choices.unavailable}</div>}
         <div><button data-variant="primary" type="submit" style={primaryButton} disabled={!defaultsVerified || !editingDefaults || busy !== undefined}>{busy === 'defaults' ? 'Saving…' : 'Save defaults'}</button></div>
       </form>
     </section>
 
     <section style={card}>
-      <SectionTitle title={`Running sandboxes${running === 0 ? '' : ` (${String(running)})`}`} detail="Cloud sessions remain ordinary chats in the main sidebar. The indented container marker identifies them." />
+      <SectionTitle title="Agent tools" detail="Optional Blaxel guidance and resource access for DeepSeek Harness agents." />
+      <div style={{ alignItems: 'center', display: 'flex', gap: 12, justifyContent: 'space-between', paddingBottom: 13 }}>
+        <div><strong style={{ fontSize: 13 }}>Blaxel skills</strong><div style={muted}>{skills?.upToDate === true ? 'Blaxel CLI and SDK guidance is current.' : skills?.installed === true ? skills.checkError ?? 'A newer skill version is available.' : 'Install the official Blaxel agent skills.'}</div></div>
+        {skills?.upToDate === true
+          ? <StatusPill ok>Up to date</StatusPill>
+          : <button data-variant={skills?.installed === true ? undefined : 'primary'} type="button" style={skills?.installed === true ? button : primaryButton} disabled={busy !== undefined} onClick={() => void run('skills', 'Blaxel skills are up to date.', installBlaxelSkills)}>{busy === 'skills' ? 'Updating…' : skills?.installed === true ? 'Update' : 'Install'}</button>}
+      </div>
+      <div style={{ alignItems: 'center', borderTop: '1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.18))', display: 'flex', gap: 12, justifyContent: 'space-between', paddingTop: 13 }}>
+        <div><strong style={{ fontSize: 13 }}>Blaxel resource tools</strong><div style={muted}>{mcp?.connected === true ? 'Agents can securely access your Blaxel resources.' : 'Connect tools that let agents work with your Blaxel resources.'}</div></div>
+        {mcp?.connected === true
+          ? <div style={{ alignItems: 'center', display: 'flex', gap: 8 }}><StatusPill ok>Connected</StatusPill><button type="button" style={{ ...button, padding: '5px 8px' }} disabled={busy !== undefined} onClick={() => void run('mcp-logout', 'Blaxel resource tools disconnected.', disconnectBlaxelMcp)}>{busy === 'mcp-logout' ? 'Disconnecting…' : 'Disconnect'}</button></div>
+          : <button data-variant="primary" type="button" style={primaryButton} disabled={busy !== undefined} onClick={() => void run('mcp-login', 'Blaxel resource tools connected.', connectBlaxelMcp)}>{busy === 'mcp-login' ? 'Waiting for browser…' : 'Connect'}</button>}
+      </div>
+    </section>
+
+    <section style={card}>
+      <SectionTitle title={`Running sandboxes${running === 0 ? '' : ` (${String(running)})`}`} detail="Manage sessions currently running on Blaxel." />
       {status === undefined && error === undefined ? <div style={muted}>Checking sandboxes…</div> : null}
-      {status?.sandboxes.length === 0 ? <div style={muted}>No sandbox sessions are running.</div> : null}
+      {status?.sandboxes.length === 0 ? <div style={muted}>No sessions are running on Blaxel.</div> : null}
       {status?.sandboxes.map(sandbox => <SandboxCard key={sandbox.sessionId} sandbox={sandbox} onMoveLocal={moveLocal} onStop={stop} />)}
     </section>
 

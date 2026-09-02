@@ -21,6 +21,7 @@ import {
 
 export interface SandboxSession {
   sessionId: string
+  title?: string
   workspace: string
   environment: 'production' | 'development'
   runtime: BlaxelRuntime
@@ -32,6 +33,7 @@ export interface SandboxSession {
 
 export interface SandboxSessionStatus {
   sessionId: string
+  title?: string
   workspace: string
   environment: 'production' | 'development'
   state: ReturnType<BlaxelRuntime['baselineState']>['ready'] extends boolean ? BlaxelRuntime['phase'] : never
@@ -221,7 +223,7 @@ export class BlaxelSessionRuntime extends Service {
     }
   }
 
-  async bind(prepared: PreparedSandbox, sessionId: string): Promise<SandboxSession> {
+  async bind(prepared: PreparedSandbox, sessionId: string, title?: string): Promise<SandboxSession> {
     if (this.bindings.get(sessionId) !== undefined) throw new Error('This session already has a sandbox runtime')
     const provenance: SnapshotMeta = {
       repoRoot: prepared.snapshot.repoRoot,
@@ -241,6 +243,7 @@ export class BlaxelSessionRuntime extends Service {
     }
     const session: SandboxSession = {
       sessionId,
+      ...(title === undefined ? {} : { title }),
       workspace: prepared.workspace,
       environment: prepared.environment,
       runtime: prepared.runtime,
@@ -251,6 +254,7 @@ export class BlaxelSessionRuntime extends Service {
     }
     const binding: PersistedSandboxBinding = {
       sessionId,
+      ...(title === undefined ? {} : { title }),
       sandboxName: prepared.runtime.name,
       cwd: prepared.runtime.cwd,
       workspaceRoot: prepared.runtime.workspaceRoot,
@@ -342,6 +346,7 @@ export class BlaxelSessionRuntime extends Service {
       const facts = runtime.phase === 'ready' ? await runtime.sandboxFacts() : { name: runtime.name }
       return {
         sessionId: session.sessionId,
+        ...(session.title === undefined ? {} : { title: session.title }),
         workspace: session.workspace,
         environment: session.environment,
         state: runtime.phase,
@@ -360,6 +365,7 @@ export class BlaxelSessionRuntime extends Service {
     const liveIds = new Set(live.map(item => item.sessionId))
     const unavailable: SandboxSessionStatus[] = this.bindings.list().filter(binding => !liveIds.has(binding.sessionId)).map(binding => ({
       sessionId: binding.sessionId,
+      ...(binding.title === undefined ? {} : { title: binding.title }),
       workspace: binding.workspace,
       environment: binding.environment,
       state: 'failed',
@@ -423,6 +429,7 @@ export class BlaxelSessionRuntime extends Service {
         let released = false
         const session: SandboxSession = {
           sessionId: binding.sessionId,
+          ...(binding.title === undefined ? {} : { title: binding.title }),
           workspace: binding.workspace,
           environment: binding.environment,
           runtime,

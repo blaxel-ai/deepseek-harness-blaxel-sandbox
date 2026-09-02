@@ -80,6 +80,9 @@
     "dist",
     "cordis.patch.yml",
     "README.md",
+    "GUIDE.md",
+    "llms.txt",
+    "docs/calibrator-roundtrip-dogfood.md",
     "LICENSE"
   ],
   "dsh": {

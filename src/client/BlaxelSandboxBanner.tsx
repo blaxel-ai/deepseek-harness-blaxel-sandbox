@@ -51,9 +51,9 @@ export function sandboxConsoleUrl(workspace: string, sandbox: string, environmen
 }
 
 function stateLabel(state: 'creating' | 'restoring' | 'ready' | 'failed'): string {
-  if (state === 'ready') return 'Running in Blaxel'
+  if (state === 'ready') return 'Running on Blaxel'
   if (state === 'failed') return 'Blaxel sandbox unavailable'
-  return 'Connecting to Blaxel'
+  return 'Starting on Blaxel'
 }
 
 /** Finds the nearest native session pane without depending on hashed DSH classes. */
@@ -95,8 +95,7 @@ export function BlaxelSandboxBanner(props: BlaxelSandboxBannerProps): ReactNode 
     >
       <span style={{ color: 'var(--dsw-alias-state-business-primary, #6da7ff)', display: 'inline-flex' }}><SandboxIcon size={14} /></span>
       <strong style={{ fontWeight: 600 }}>{stateLabel(item.state)}</strong>
-      <code style={{ color: 'var(--dsw-alias-label-secondary, currentColor)', fontFamily: 'var(--dsw-alias-font-mono, monospace)', opacity: 0.8 }}>{item.sandbox.name}</code>
-      <span aria-hidden="true" style={{ marginLeft: 'auto', opacity: 0.72 }}>View live&nbsp; ↗</span>
+      <span aria-hidden="true" style={{ marginLeft: 'auto', opacity: 0.72 }}>Open in Blaxel&nbsp; ↗</span>
     </a>
   </>
 }

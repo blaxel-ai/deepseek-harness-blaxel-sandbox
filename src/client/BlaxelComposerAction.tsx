@@ -198,21 +198,21 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
   const title = props.session.running
     ? 'Wait for the current turn to finish before creating a sandbox session'
     : reason ?? (summary?.blank
-      ? 'Create a sandbox-backed session for this Git worktree'
-      : 'Move this session onto a Blaxel sandbox')
+      ? 'Open this Git worktree in a Blaxel sandbox'
+      : 'Move this session to a Blaxel sandbox')
 
   return <>
     {panel}
     {repair}
     <button
       type="button"
-      aria-label={summary?.blank ? 'Open current Git repository in a sandbox session' : 'Move this session to a sandbox'}
+      aria-label={summary?.blank ? 'Open current Git repository on Blaxel' : 'Move this session to Blaxel'}
       disabled={disabled}
       onClick={() => { void launch() }}
       style={{ ...actionButton, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.55 : 1 }}
       title={title}
     >
-      {busy ? 'Checking…' : summary?.blank ? 'Open in Sandbox' : 'Move to Sandbox'}
+      {busy ? summary?.blank ? 'Opening…' : 'Moving…' : summary?.blank ? 'Open on Blaxel' : 'Move to Blaxel'}
     </button>
   </>
 }

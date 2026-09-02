@@ -21,20 +21,20 @@ export interface LaunchLine {
 
 function label(step: LaunchStep, kind: LaunchProgress['kind']): string {
   switch (step) {
-    case 'inspecting': return 'Reading the Git worktree'
-    case 'listing': return 'Listing tracked and untracked files'
-    case 'screening': return 'Screening files for credentials'
-    case 'archiving': return 'Copying files into the sandbox snapshot'
+    case 'inspecting': return 'Checking the Git worktree'
+    case 'listing': return 'Finding workspace files'
+    case 'screening': return 'Excluding sensitive files'
+    case 'archiving': return 'Preparing the workspace snapshot'
     case 'session': return 'Preparing the session handoff'
-    case 'starting': return 'Starting the sandbox runtime'
-    case 'ready': return kind === 'move' ? 'Sandbox session ready' : 'Sandbox session ready'
+    case 'starting': return 'Starting the Blaxel sandbox'
+    case 'ready': return kind === 'move' ? 'Ready on Blaxel' : 'Ready on Blaxel'
   }
 }
 
 function detail(step: LaunchStep, progress: LaunchProgress): string | undefined {
   const files = progress.files
   if (step === 'screening' && files !== undefined && files.total > 0) {
-    const skipped = files.skipped === 0 ? '' : `, ${String(files.skipped)} withheld`
+    const skipped = files.skipped === 0 ? '' : `, ${String(files.skipped)} excluded`
     return `${String(files.screened)} of ${String(files.total)}${skipped}`
   }
   if (step === 'archiving' && files !== undefined && files.included > 0) {

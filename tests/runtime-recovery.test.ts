@@ -106,6 +106,7 @@ describe('sandbox runtime recovery', () => {
   it('reconnects the same session without creating or deleting its sandbox on host disposal', async () => {
     new SandboxBindingStore().save({
       sessionId: 'session-restore',
+      title: 'Repository work',
       sandboxName: 'dsh-0123456789abcdef',
       cwd: '/workspace/project',
       workspaceRoot: '/workspace',
@@ -133,7 +134,7 @@ describe('sandbox runtime recovery', () => {
     const status = await ctx.blaxelSessions.status()
 
     expect(status.sandboxes).toHaveLength(1)
-    expect(status.sandboxes[0]).toMatchObject({ sessionId: 'session-restore', state: 'ready' })
+    expect(status.sandboxes[0]).toMatchObject({ sessionId: 'session-restore', title: 'Repository work', state: 'ready' })
     expect(ctx.blaxelSessions.isSandboxSession('session-restore')).toBe(true)
     expect(sdk.get).toHaveBeenCalledWith('dsh-0123456789abcdef')
     expect(sdk.create).not.toHaveBeenCalled()

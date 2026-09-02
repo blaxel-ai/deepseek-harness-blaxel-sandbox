@@ -54,7 +54,7 @@ describe('launch step list', () => {
   it('counts real files on the step in flight and nowhere else', () => {
     const files = { screened: 128, total: 400, included: 120, skipped: 8, archived: 40 }
     const screening = launchLines(progress({ step: 'screening', files }))
-    expect(screening.find(line => line.step === 'screening')?.detail).toBe('128 of 400, 8 withheld')
+    expect(screening.find(line => line.step === 'screening')?.detail).toBe('128 of 400, 8 excluded')
     const archiving = launchLines(progress({ step: 'archiving', files, archiveBytes: 4096 }))
     expect(archiving.find(line => line.step === 'archiving')?.detail).toBe('40 of 120 files · 4.0 KiB')
     expect(archiving.find(line => line.step === 'screening')?.detail).toBeUndefined()

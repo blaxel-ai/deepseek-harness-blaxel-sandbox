@@ -422,7 +422,7 @@ export class BlaxelSettingsManager {
         await this.runCli(['token', '--workspace', selectedWorkspace, '--skip-version-warning'])
       } catch (error) {
         if (/refresh_token|refresh token|unauthorized|expired/i.test(error instanceof Error ? error.message : String(error))) {
-          throw new Error('This Blaxel sign-in has expired. Sign in with browser again.')
+          throw new Error('This Blaxel sign-in has expired. Sign in to Blaxel again.')
         }
         throw error
       }

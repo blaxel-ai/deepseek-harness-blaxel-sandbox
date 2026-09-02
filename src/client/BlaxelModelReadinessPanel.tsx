@@ -80,7 +80,7 @@ export function BlaxelModelReadinessPanel(props: Props): ReactNode {
         style={control}
       />
       <p style={{ color: 'var(--dsw-alias-label-tertiary, #777)', lineHeight: 1.4, margin: '7px 0 10px' }}>
-        Saved to this DSH host. It is never copied into the sandbox.
+        Saved on this computer and never copied into the sandbox.
       </p>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button type="button" style={button} disabled={props.busy} onClick={props.onDismiss}>Cancel</button>

@@ -50,7 +50,7 @@ async function handleOpen(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: 
         sessionId: request.sessionId,
       },
     }))
-    await ctx.blaxelSessions.bind(prepared, created.sessionId)
+    await ctx.blaxelSessions.bind(prepared, created.sessionId, request.title)
     prepared = undefined
     writeJson(res, 200, { ok: true, sessionId: created.sessionId })
   } catch (error) {
@@ -68,7 +68,7 @@ async function handleMove(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: 
     await requireReadyModel(ctx, request.sessionId)
     prepared = await ctx.blaxelSessions.prepare(request.cwd, 'move')
     if (!await sourceIsIdle(ctx, request.sessionId)) throw new Error('The session started running while its sandbox was being prepared')
-    await ctx.blaxelSessions.bind(prepared, request.sessionId)
+    await ctx.blaxelSessions.bind(prepared, request.sessionId, request.title)
     prepared = undefined
     writeJson(res, 200, { ok: true, sessionId: request.sessionId })
   } catch (error) {

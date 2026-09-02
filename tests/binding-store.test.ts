@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SandboxBindingStore, type PersistedSandboxBinding } from '../src/session-runtime/binding-store.js'
+import { defaultBindingStorePath, SandboxBindingStore, type PersistedSandboxBinding } from '../src/session-runtime/binding-store.js'
 
 const directories: string[] = []
 
@@ -15,6 +15,7 @@ function temporaryPath(): string {
 function binding(sessionId = 'session-1'): PersistedSandboxBinding {
   return {
     sessionId,
+    title: 'Repository work',
     sandboxName: 'dsh-0123456789abcdef',
     cwd: '/workspace/project',
     workspaceRoot: '/workspace',
@@ -40,6 +41,17 @@ afterEach(() => {
 })
 
 describe('sandbox binding persistence', () => {
+  it('isolates bindings inside an explicit DSH home', () => {
+    expect(defaultBindingStorePath({
+      DSH_HOME: '/tmp/dsh-home',
+      XDG_CONFIG_HOME: '/tmp/shared-config',
+    })).toBe('/tmp/dsh-home/blaxel-sandbox-bindings.json')
+    expect(defaultBindingStorePath({
+      DSH_BLAXEL_BINDINGS_PATH: '/tmp/explicit-bindings.json',
+      DSH_HOME: '/tmp/dsh-home',
+    })).toBe('/tmp/explicit-bindings.json')
+  })
+
   it('atomically survives process reconstruction and explicit removal', () => {
     const path = temporaryPath()
     const first = new SandboxBindingStore(path)
@@ -55,6 +67,12 @@ describe('sandbox binding persistence', () => {
   it('fails closed when persisted identity is malformed', () => {
     const path = temporaryPath()
     writeFileSync(path, JSON.stringify({ version: 1, bindings: [{ ...binding(), sandboxName: '../other-workspace' }] }))
+    expect(() => new SandboxBindingStore(path)).toThrow('invalid entry')
+  })
+
+  it('fails closed when a persisted session title is malformed', () => {
+    const path = temporaryPath()
+    writeFileSync(path, JSON.stringify({ version: 1, bindings: [{ ...binding(), title: 'bad\0title' }] }))
     expect(() => new SandboxBindingStore(path)).toThrow('invalid entry')
   })
 })
