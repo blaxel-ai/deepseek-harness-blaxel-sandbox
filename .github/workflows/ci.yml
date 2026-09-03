@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Weekly DSH version watch and live smoke, Mondays 07:00 UTC.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,3 +27,56 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+
+  # Early warning for the next DSH release candidate. Allowed to fail; a red run
+  # means the Host contract moved and a compatibility release is due.
+  check-dsh-next:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Pin every @deepseek-ai/dsh-* package to the next dist-tag
+        run: |
+          NEXT=$(npm view @deepseek-ai/dsh dist-tags.next)
+          echo "DSH next: $NEXT"
+          node -e '
+            const fs = require("node:fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            for (const field of ["dependencies", "devDependencies"]) {
+              for (const name of Object.keys(pkg[field] ?? {})) {
+                if (name.startsWith("@deepseek-ai/dsh-")) pkg[field][name] = process.argv[1];
+              }
+            }
+            for (const name of Object.keys(pkg.peerDependencies ?? {})) {
+              if (name.startsWith("@deepseek-ai/dsh-")) pkg.peerDependencies[name] = "^" + process.argv[1];
+            }
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          ' "$NEXT"
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm check
+
+  # Runs the opt-in live test against a real Blaxel sandbox on the schedule.
+  # Skips cleanly when the BL_API_KEY secret is not configured.
+  live-smoke:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      BL_API_KEY: ${{ secrets.BL_API_KEY }}
+      BL_WORKSPACE: ${{ secrets.BL_WORKSPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Live sandbox smoke
+        run: |
+          if [ -z "$BL_API_KEY" ]; then echo "BL_API_KEY secret not set; skipping live smoke"; exit 0; fi
+          DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      deepseek-harness:
+        patterns:
+          - "@deepseek-ai/*"
+      blaxel:
+        patterns:
+          - "@blaxel/*"
+    # A DSH bump is a compatibility release: re-verify the clean-profile install and add a changelog entry before merging.
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
