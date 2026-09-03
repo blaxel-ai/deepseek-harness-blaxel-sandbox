@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 - 2026-09-03
+
+Compatibility release for DeepSeek Harness `0.1.2-rc.1`.
+
+- DSH 0.1.2 removed the Host API Proxy service the Web entry depended on, so the plugin failed to activate with `waiting for service: apiProxy`. The Web entry now calls the owning Host services directly: the session, workspace, settings, and credentials controllers, the LLM provider registry, and the default-model service.
+- Requires DSH `0.1.2-rc.1` or newer; `0.1.1-rc.2` hosts stay on plugin `0.1.0`.
+- Verified on DSH `0.1.2-rc.1`: full check, clean install of the packed tarball into a fresh Web profile, and DSH Web booting with every Blaxel entry active.
+
 ## 0.1.0 - 2026-09-02
 
 First public release of `@blaxel/dsh-sandbox`, the Blaxel sandbox plugin for DeepSeek Harness (DSH) Web.

@@ -37,8 +37,8 @@ dsh web
 
 ## Current contract
 
-- Package version: 0.1.0, not yet published.
-- DSH package contract: 0.1.1-rc.2 components with @deepseek-ai/cordis 4.x.
+- Package version: 0.1.1.
+- DSH package contract: 0.1.2-rc.1 components with @deepseek-ai/cordis 4.x. Plugin 0.1.0 is the last release for DSH 0.1.1-rc.2.
 - Default image: blaxel/ts-app:latest.
 - Default memory: 4096 MB.
 - Default region: automatic.

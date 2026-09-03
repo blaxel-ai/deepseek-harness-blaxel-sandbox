@@ -1,37 +1,32 @@
 import { describe, expect, it, vi } from 'vitest'
 import { configureMissingModelCredential, inspectModelReadiness } from '../src/web/model-readiness.js'
 
-function ok<T>(value: T): Promise<{ result: { ok: true; value: T } }> {
-  return Promise.resolve({ result: { ok: true, value } })
-}
-
 function harness(options: { configured?: boolean; routable?: boolean; apiKeyEnv?: string } = {}) {
   let configured = options.configured ?? true
   const set = vi.fn(async () => {
     configured = true
-    return await ok({})
   })
   return {
     ctx: {
-      apiProxy: {
-        sessions: {
-          models: () => ok({ current: { provider: 'openai', model: 'gpt-5.6-luna' }, routable: options.routable ?? true }),
-        },
-        llm: {
-          providers: () => ok({ providers: [{
-            provider: 'openai', displayName: 'OpenAI', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], active: true,
-          }] }),
-        },
-        settings: {
-          describe: () => ok({ namespaces: [{
-            ns: 'llm-pi-ai',
-            value: { providers: { openai: options.apiKeyEnv === undefined ? { apiKeyEnv: 'OPENAI_API_KEY' } : { apiKeyEnv: options.apiKeyEnv } } },
-          }] }),
-        },
-        credentials: {
-          describe: () => ok({ credentials: { OPENAI_API_KEY: { configured, writable: true } } }),
-          set,
-        },
+      sessionController: {
+        resolveAgent: async () => ({ agent: { session: { requestHeader: () => ({ config: { provider: 'openai', model: 'gpt-5.6-luna' } }) } } }),
+      },
+      agentDefaultModel: { currentSelection: () => ({ provider: 'deepseek', model: 'deepseek-chat' }) },
+      llm: {
+        listProviders: () => (options.routable ?? true) ? [{ id: 'openai' }] : [],
+        listConfigurableProviders: () => [{
+          provider: 'openai', displayName: 'OpenAI', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'],
+        }],
+      },
+      settingsController: {
+        describe: () => ({ namespaces: [{
+          ns: 'llm-pi-ai',
+          value: { providers: { openai: options.apiKeyEnv === undefined ? { apiKeyEnv: 'OPENAI_API_KEY' } : { apiKeyEnv: options.apiKeyEnv } } },
+        }] }),
+      },
+      credentialsController: {
+        describe: async () => ({ OPENAI_API_KEY: { configured, writable: true } }),
+        set,
       },
     },
     set,
@@ -69,8 +64,6 @@ describe('model readiness', () => {
     const { ctx, set } = harness({ configured: false })
     await expect(configureMissingModelCredential(ctx as never, 'session-1', 'secret-key'))
       .resolves.toMatchObject({ kind: 'ready', provider: 'openai' })
-    expect(set).toHaveBeenCalledWith(expect.objectContaining({
-      payload: { ref: 'OPENAI_API_KEY', value: 'secret-key' },
-    }))
+    expect(set).toHaveBeenCalledWith('OPENAI_API_KEY', 'secret-key')
   })
 })
