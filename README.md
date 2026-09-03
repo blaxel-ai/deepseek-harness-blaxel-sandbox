@@ -22,6 +22,17 @@ The active native session ID selects the execution backend. The plugin never sta
 
 Sandbox sessions use an indented container marker so they are distinguishable in the normal sidebar. An empty session offers **Open on Blaxel**. A session with history offers **Move to Blaxel**, which atomically binds that same native session ID to Blaxel. Its conversation, automatic title, sidebar row, and current-page selection stay unchanged.
 
+## Compatibility
+
+DeepSeek Harness is in developer preview and its plugin contracts change between release candidates. Each plugin release pins one DSH version and is verified against it with the full check, a clean-profile install, and a DSH Web boot.
+
+| Plugin | DSH host | Node.js |
+| -- | -- | -- |
+| `0.1.1` | `0.1.2-rc.1` | 22, 24 |
+| `0.1.0` | `0.1.1-rc.2` | 22, 24 |
+
+When DSH publishes a new version, the plugin is re-verified against it and, when a Host contract moved, a new plugin release pins the new version. Older hosts keep the last plugin release that pinned them.
+
 ## Profile installation
 
 After the package is published, install it into the DSH Web profile with the native helpers it requires:

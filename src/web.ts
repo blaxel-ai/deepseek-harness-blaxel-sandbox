@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import type { BlaxelHttpRequest, BlaxelHttpResponse, BlaxelWebContext } from './web/context.js'
 import {
   permitsAction,
@@ -18,16 +17,19 @@ import { configureMissingModelCredential, inspectModelReadiness, requireReadyMod
 import { inspectGitWorkspace } from './web/workspace-snapshot.js'
 
 export const name = 'dsh-blaxel-web'
-export const inject = ['webServer', 'apiProxy', 'blaxelSessions']
-
-async function rpc<T>(call: Promise<{ result: { ok: true; value: T } | { ok: false; error: { message: string } } }>): Promise<T> {
-  const response = await call
-  if (!response.result.ok) throw new Error(response.result.error.message)
-  return response.result.value
-}
+export const inject = [
+  'webServer',
+  'sessionController',
+  'workspaceController',
+  'settingsController',
+  'credentialsController',
+  'llm',
+  'agentDefaultModel',
+  'blaxelSessions',
+]
 
 async function sourceIsIdle(ctx: BlaxelWebContext, sessionId: string): Promise<boolean> {
-  const { items } = await rpc(ctx.apiProxy.sessions.list({ rpcId: randomUUID(), payload: {} }))
+  const { items } = await ctx.sessionController.list({}, new AbortController().signal)
   return items.find(item => item.sessionId === sessionId)?.running === false
 }
 
@@ -38,18 +40,12 @@ async function handleOpen(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: 
     const request = await readMoveRequest(req)
     await requireReadyModel(ctx, request.sessionId)
     const workspace = await inspectGitWorkspace(request.cwd)
-    const registered = await rpc(ctx.apiProxy.workspace.create({
-      rpcId: randomUUID(),
-      payload: { path: workspace.cwd },
-    }))
+    const registered = await ctx.workspaceController.create({ path: workspace.cwd })
     prepared = await ctx.blaxelSessions.prepare(workspace.cwd, 'open')
-    const created = await rpc(ctx.apiProxy.sessions.create({
-      rpcId: randomUUID(),
-      payload: {
-        workspaceId: registered.workspace.workspaceId,
-        sessionId: request.sessionId,
-      },
-    }))
+    const created = await ctx.sessionController.create({
+      workspaceId: registered.workspace.workspaceId,
+      sessionId: request.sessionId,
+    })
     await ctx.blaxelSessions.bind(prepared, created.sessionId, request.title)
     prepared = undefined
     writeJson(res, 200, { ok: true, sessionId: created.sessionId })

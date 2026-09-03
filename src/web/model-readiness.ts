@@ -1,13 +1,6 @@
-import { randomUUID } from 'node:crypto'
 import type { ModelReadiness, ReadyModel } from '../shared/model-readiness.js'
 import { modelReadinessMessage } from '../shared/model-readiness.js'
-import type { BlaxelWebContext } from './context.js'
-
-async function rpc<T>(call: Promise<{ result: { ok: true; value: T } | { ok: false; error: { message: string } } }>): Promise<T> {
-  const response = await call
-  if (!response.result.ok) throw new Error(response.result.error.message)
-  return response.result.value
-}
+import type { BlaxelWebContext, ModelSelection } from './context.js'
 
 function atPath(value: unknown, path: readonly string[]): unknown {
   let current = value
@@ -24,19 +17,25 @@ function apiKeyEnv(value: unknown): string | undefined {
   return typeof ref === 'string' && ref.length > 0 ? ref : undefined
 }
 
+/** Mirrors the Host's own selection order: pending pick, logged request header, deployment default. */
+async function currentSelection(ctx: BlaxelWebContext, sessionId: string): Promise<ModelSelection> {
+  const found = await ctx.sessionController.resolveAgent(sessionId)
+  if ('error' in found) throw new Error(found.error.message)
+  const pending = ctx.sessionProjections?.stateOf(found.agent.session, 'modelSelection')?.pending ?? null
+  if (pending !== null) return { provider: pending.provider, model: pending.model }
+  const logged = found.agent.session.requestHeader()?.config
+  if (logged !== undefined) return { provider: logged.provider, model: logged.model }
+  return ctx.agentDefaultModel.currentSelection()
+}
+
 /** Resolves the current model, its provider profile, and its value-free credential state. */
 export async function inspectModelReadiness(ctx: BlaxelWebContext, sessionId: string): Promise<ModelReadiness> {
   try {
-    const models = await rpc(ctx.apiProxy.sessions.models({
-      rpcId: randomUUID(),
-      payload: { sessionId },
-    }))
-    const provider = models.current.provider
-    const model = models.current.model
-    const providers = await rpc(ctx.apiProxy.llm.providers({ rpcId: randomUUID(), payload: {} }))
-    const entry = providers.providers.find(candidate => candidate.provider === provider)
+    const { provider, model } = await currentSelection(ctx, sessionId)
+    const routable = ctx.llm.listProviders().some(candidate => candidate.id === provider)
+    const entry = ctx.llm.listConfigurableProviders().find(candidate => candidate.provider === provider)
     const providerName = entry?.displayName ?? provider
-    if (!models.routable || entry?.active === false) {
+    if (!routable) {
       return {
         kind: 'provider-unavailable',
         provider,
@@ -48,15 +47,12 @@ export async function inspectModelReadiness(ctx: BlaxelWebContext, sessionId: st
     if (entry === undefined || entry.settingsNs === '') {
       return { kind: 'ready', provider, providerName, model }
     }
-    const settings = await rpc(ctx.apiProxy.settings.describe({ rpcId: randomUUID(), payload: {} }))
+    const settings = ctx.settingsController.describe()
     const namespace = settings.namespaces.find(candidate => candidate.ns === entry.settingsNs)
     const ref = apiKeyEnv(atPath(namespace?.value, entry.settingsPath))
     if (ref === undefined) return { kind: 'ready', provider, providerName, model }
-    const described = await rpc(ctx.apiProxy.credentials.describe({
-      rpcId: randomUUID(),
-      payload: { refs: [ref] },
-    }))
-    const credential = described.credentials[ref]
+    const described = await ctx.credentialsController.describe([ref])
+    const credential = described[ref]
     if (credential?.configured === true) return { kind: 'ready', provider, providerName, model }
     return {
       kind: 'credential-missing',
@@ -90,10 +86,7 @@ export async function configureMissingModelCredential(
   if (before.kind === 'ready') return before
   if (before.kind !== 'credential-missing') throw new Error(modelReadinessMessage(before))
   if (!before.writable) throw new Error(`${before.providerName} credentials are managed outside DSH and cannot be changed here`)
-  await rpc(ctx.apiProxy.credentials.set({
-    rpcId: randomUUID(),
-    payload: { ref: before.credentialRef, value },
-  }))
+  await ctx.credentialsController.set(before.credentialRef, value)
   const after = await inspectModelReadiness(ctx, sessionId)
   if (after.kind !== 'ready') throw new Error(modelReadinessMessage(after))
   return after

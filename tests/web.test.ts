@@ -33,22 +33,24 @@ function response(): { res: BlaxelHttpResponse; status: () => number | undefined
 
 function readyModelApi() {
   return {
-    models: vi.fn(async () => ({ result: { ok: true as const, value: { current: { provider: 'openai', model: 'gpt-5.6-luna' }, routable: true } } })),
+    sessionController: {
+      resolveAgent: vi.fn(async () => ({ agent: { session: { requestHeader: () => ({ config: { provider: 'openai', model: 'gpt-5.6-luna' } }) } } })),
+    },
     llm: {
-      providers: vi.fn(async () => ({ result: { ok: true as const, value: { providers: [{
-        provider: 'openai', displayName: 'OpenAI', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], active: true,
-      }] } } })),
+      listProviders: vi.fn(() => [{ id: 'openai' }]),
+      listConfigurableProviders: vi.fn(() => [{
+        provider: 'openai', displayName: 'OpenAI', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'],
+      }]),
     },
-    settings: {
-      describe: vi.fn(async () => ({ result: { ok: true as const, value: { namespaces: [{
+    agentDefaultModel: { currentSelection: vi.fn(() => ({ provider: 'openai', model: 'gpt-5.6-luna' })) },
+    settingsController: {
+      describe: vi.fn(() => ({ namespaces: [{
         ns: 'llm-pi-ai', value: { providers: { openai: { apiKeyEnv: 'OPENAI_API_KEY' } } },
-      }] } } })),
+      }] })),
     },
-    credentials: {
-      describe: vi.fn(async () => ({ result: { ok: true as const, value: { credentials: {
-        OPENAI_API_KEY: { configured: true, writable: true },
-      } } } })),
-      set: vi.fn(async () => ({ result: { ok: true as const, value: {} } })),
+    credentialsController: {
+      describe: vi.fn(async () => ({ OPENAI_API_KEY: { configured: true, writable: true } })),
+      set: vi.fn(async () => undefined),
     },
   }
 }
@@ -58,26 +60,19 @@ describe('Blaxel Web routing', () => {
     let route: BlaxelWebRoute | undefined
     const prepared = { marker: true }
     const bind = vi.fn()
-    const rename = vi.fn(async () => ({ result: { ok: true as const, value: { title: 'Pinned title', seq: 1 } } }))
-    const createSession = vi.fn(async () => ({ result: { ok: true as const, value: { sessionId: 'local-session' } } }))
+        const createSession = vi.fn(async () => ({ sessionId: 'local-session' }))
     const modelApi = readyModelApi()
     const ctx = {
       effect: (setup: () => unknown) => setup(),
       webServer: { register: (registered: BlaxelWebRoute) => { route = registered; return () => undefined } },
-      apiProxy: {
-        sessions: {
-          create: createSession,
-          rename,
-          list: async () => ({ result: { ok: true, value: { items: [] } } }),
-          models: modelApi.models,
-          fork: async () => ({ result: { ok: true, value: { sessionId: 'forked-session' } } }),
-        },
-        workspace: {
-          create: async () => ({ result: { ok: true, value: { workspace: { workspaceId: 'workspace-repo' } } } }),
-        },
-        llm: modelApi.llm,
-        settings: modelApi.settings,
-        credentials: modelApi.credentials,
+      ...modelApi,
+      sessionController: {
+        ...modelApi.sessionController,
+        create: createSession,
+        list: async () => ({ items: [] }),
+      },
+      workspaceController: {
+        create: async () => ({ workspace: { workspaceId: 'workspace-repo' } }),
       },
       blaxelSessions: {
         prepare: async () => prepared,
@@ -95,35 +90,25 @@ describe('Blaxel Web routing', () => {
     await route.handler(request('open', { cwd: process.cwd(), sessionId: 'local-session', title: 'Repository work' }), target.res)
     expect(target.status()).toBe(200)
     expect(target.body()).toEqual({ ok: true, sessionId: 'local-session' })
-    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({
-      payload: { workspaceId: 'workspace-repo', sessionId: 'local-session' },
-    }))
+    expect(createSession).toHaveBeenCalledWith({ workspaceId: 'workspace-repo', sessionId: 'local-session' })
     expect(bind).toHaveBeenCalledWith(prepared, 'local-session', 'Repository work')
-    expect(rename).not.toHaveBeenCalled()
   })
 
   it('moves an idle session by binding its existing id without forking', async () => {
     let route: BlaxelWebRoute | undefined
     const prepared = { marker: true }
     const bind = vi.fn()
-    const fork = vi.fn()
     const modelApi = readyModelApi()
     const ctx = {
       effect: (setup: () => unknown) => setup(),
       webServer: { register: (registered: BlaxelWebRoute) => { route = registered; return () => undefined } },
-      apiProxy: {
-        sessions: {
-          create: vi.fn(),
-          rename: vi.fn(),
-          list: vi.fn(async () => ({ result: { ok: true as const, value: { items: [{ sessionId: 'local-session', running: false }] } } })),
-          models: modelApi.models,
-          fork,
-        },
-        workspace: { create: vi.fn() },
-        llm: modelApi.llm,
-        settings: modelApi.settings,
-        credentials: modelApi.credentials,
+      ...modelApi,
+      sessionController: {
+        ...modelApi.sessionController,
+        create: vi.fn(),
+        list: vi.fn(async () => ({ items: [{ sessionId: 'local-session', running: false }] })),
       },
+      workspaceController: { create: vi.fn() },
       blaxelSessions: {
         prepare: vi.fn(async () => prepared),
         bind,
@@ -141,7 +126,6 @@ describe('Blaxel Web routing', () => {
     expect(target.status()).toBe(200)
     expect(target.body()).toEqual({ ok: true, sessionId: 'local-session' })
     expect(bind).toHaveBeenCalledWith(prepared, 'local-session', undefined)
-    expect(fork).not.toHaveBeenCalled()
   })
 
   it('discards the sandbox if the session starts running before the handoff', async () => {
@@ -150,19 +134,15 @@ describe('Blaxel Web routing', () => {
     const bind = vi.fn()
     const discard = vi.fn()
     const list = vi.fn()
-      .mockResolvedValueOnce({ result: { ok: true as const, value: { items: [{ sessionId: 'local-session', running: false }] } } })
-      .mockResolvedValueOnce({ result: { ok: true as const, value: { items: [{ sessionId: 'local-session', running: true }] } } })
+      .mockResolvedValueOnce({ items: [{ sessionId: 'local-session', running: false }] })
+      .mockResolvedValueOnce({ items: [{ sessionId: 'local-session', running: true }] })
     const modelApi = readyModelApi()
     const ctx = {
       effect: (setup: () => unknown) => setup(),
       webServer: { register: (registered: BlaxelWebRoute) => { route = registered; return () => undefined } },
-      apiProxy: {
-        sessions: { create: vi.fn(), rename: vi.fn(), list, models: modelApi.models },
-        workspace: { create: vi.fn() },
-        llm: modelApi.llm,
-        settings: modelApi.settings,
-        credentials: modelApi.credentials,
-      },
+      ...modelApi,
+      sessionController: { ...modelApi.sessionController, create: vi.fn(), list },
+      workspaceController: { create: vi.fn() },
       blaxelSessions: {
         prepare: vi.fn(async () => prepared),
         bind,
@@ -186,23 +166,18 @@ describe('Blaxel Web routing', () => {
   it('does not provision a sandbox while the selected model credential is missing', async () => {
     let route: BlaxelWebRoute | undefined
     const modelApi = readyModelApi()
-    modelApi.credentials.describe.mockResolvedValue({ result: { ok: true as const, value: { credentials: {
-      OPENAI_API_KEY: { configured: false, writable: true },
-    } } } })
+    modelApi.credentialsController.describe.mockResolvedValue({ OPENAI_API_KEY: { configured: false, writable: true } })
     const prepare = vi.fn()
     const ctx = {
       effect: (setup: () => unknown) => setup(),
       webServer: { register: (registered: BlaxelWebRoute) => { route = registered; return () => undefined } },
-      apiProxy: {
-        sessions: {
-          create: vi.fn(), rename: vi.fn(), models: modelApi.models,
-          list: vi.fn(async () => ({ result: { ok: true as const, value: { items: [{ sessionId: 'local-session', running: false }] } } })),
-        },
-        workspace: { create: vi.fn() },
-        llm: modelApi.llm,
-        settings: modelApi.settings,
-        credentials: modelApi.credentials,
+      ...modelApi,
+      sessionController: {
+        ...modelApi.sessionController,
+        create: vi.fn(),
+        list: vi.fn(async () => ({ items: [{ sessionId: 'local-session', running: false }] })),
       },
+      workspaceController: { create: vi.fn() },
       blaxelSessions: {
         prepare,
         bind: vi.fn(),

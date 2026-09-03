@@ -24,12 +24,6 @@ export interface BlaxelWebServer {
   register(route: BlaxelWebRoute): () => void
 }
 
-type RpcResponse<T> = Promise<{
-  result: { ok: true; value: T } | { ok: false; error: { message: string } }
-}>
-
-type RpcCall<TPayload, TResult> = (request: { rpcId: string; payload: TPayload }) => RpcResponse<TResult>
-
 /** One listed session; `running` is the authority on an in-flight turn. */
 export interface SessionListItem {
   sessionId: string
@@ -37,7 +31,7 @@ export interface SessionListItem {
   cwd?: string
 }
 
-interface ModelSelection {
+export interface ModelSelection {
   provider: string
   model: string
 }
@@ -46,8 +40,7 @@ interface ConfigurableProvider {
   provider: string
   displayName: string
   settingsNs: string
-  settingsPath: string[]
-  active: boolean
+  settingsPath: readonly string[]
 }
 
 interface CredentialView {
@@ -55,33 +48,54 @@ interface CredentialView {
   writable: boolean
 }
 
-export interface BlaxelApiProxy {
-  sessions: {
-    /** `workspaceId` and `cwd` are mutually exclusive; `sessionId` adopts a stored log. */
-    create: RpcCall<{ workspaceId?: string; cwd?: string; sessionId?: string }, { sessionId: string }>
-    list: RpcCall<Record<string, never>, { items: SessionListItem[] }>
-    models: RpcCall<{ sessionId: string }, { current: ModelSelection; routable: boolean }>
-    rename: RpcCall<{ sessionId: string; title: string }, { title: string; seq: number }>
-  }
-  workspace: {
-    create: RpcCall<{ path: string }, { workspace: { workspaceId: string } }>
-  }
-  llm: {
-    providers: RpcCall<Record<string, never>, { providers: ConfigurableProvider[] }>
-  }
-  settings: {
-    describe: RpcCall<Record<string, never>, { namespaces: { ns: string; value: unknown }[] }>
-  }
-  credentials: {
-    describe: RpcCall<{ refs: string[] }, { credentials: Record<string, CredentialView> }>
-    set: RpcCall<{ ref: string; value: string }, Record<string, never>>
-  }
+/** The live Agent resolved for a session; only the folded request header is read. */
+export interface BlaxelResolvedAgent {
+  session: { requestHeader(): { config: ModelSelection } | undefined }
+}
+
+/** Host owner of session lifecycle (`@deepseek-ai/dsh-api-session-controller`). */
+export interface BlaxelSessionController {
+  list(request: Record<string, never>, signal: AbortSignal): Promise<{ items: readonly SessionListItem[] }>
+  /** `workspaceId` and `cwd` are mutually exclusive; `sessionId` adopts a stored log. */
+  create(request: { workspaceId?: string; cwd?: string; sessionId?: string }): Promise<{ sessionId: string }>
+  resolveAgent(sessionId: string): Promise<{ agent: BlaxelResolvedAgent } | { error: { message: string } }>
+}
+
+/** Host owner of workspace navigation (`@deepseek-ai/dsh-api-workspace-controller`). */
+export interface BlaxelWorkspaceController {
+  create(request: { path: string }): Promise<{ workspace: { workspaceId: string } }>
+}
+
+/** Host owner of redacted settings reads (`@deepseek-ai/dsh-api-settings-controller`). */
+export interface BlaxelSettingsController {
+  describe(): { namespaces: { ns: string; value: unknown }[] }
+}
+
+/** Host owner of value-free credential state (`@deepseek-ai/dsh-api-settings-controller`). */
+export interface BlaxelCredentialsController {
+  describe(refs: string[]): Promise<Record<string, CredentialView>>
+  set(ref: string, value: string): Promise<void>
+}
+
+/** Deployment default model (`@deepseek-ai/dsh-agent-default-model`). */
+export interface BlaxelAgentDefaultModel {
+  currentSelection(): ModelSelection
+}
+
+/** Optional pending model pick projected for a session before its next request. */
+export interface BlaxelSessionProjections {
+  stateOf(session: unknown, key: 'modelSelection'): { pending: ModelSelection | null } | undefined
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     webServer: BlaxelWebServer
-    apiProxy: BlaxelApiProxy
+    sessionController: BlaxelSessionController
+    workspaceController: BlaxelWorkspaceController
+    settingsController: BlaxelSettingsController
+    credentialsController: BlaxelCredentialsController
+    agentDefaultModel: BlaxelAgentDefaultModel
+    sessionProjections?: BlaxelSessionProjections
   }
 }
 
