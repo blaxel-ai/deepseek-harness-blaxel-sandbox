@@ -117,3 +117,4 @@ Do not run the live test without authorization to use the target Blaxel workspac
 - A running turn cannot be moved into a sandbox session.
 - Moving is an explicit round trip, not continuous synchronization. `Return to local` conflict-checks sandbox changes against the original worktree, applies them only when safe, stops that sandbox, and keeps the same DSH session local. The session can later move into a fresh sandbox again.
 - Each runtime is deleted only when stopped. Restarting DSH reconnects the same native session to its existing sandbox.
+- Telemetry is limited to attribution: Blaxel API and sandbox requests carry the Blaxel SDK `User-Agent` with `deepseek-harness-blaxel-sandbox/<version>` appended. Nothing is collected from DSH, the conversation, or the workspace.

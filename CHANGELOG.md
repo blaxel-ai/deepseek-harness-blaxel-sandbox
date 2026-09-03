@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 - 2026-09-03
+
+- Every Blaxel request made by the plugin now appends the product token `deepseek-harness-blaxel-sandbox/<version>` to the Blaxel SDK `User-Agent`, so Blaxel can attribute sandbox traffic to this integration. No new headers, identifiers, or data are sent, and nothing is collected from DSH or the workspace.
+
 ## 0.1.1 - 2026-09-03
 
 Compatibility release for DeepSeek Harness `0.1.2-rc.1`.

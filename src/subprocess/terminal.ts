@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { posix } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { settings } from '@blaxel/core'
+import '../shared/integration-user-agent.js'
 import type {
   SubprocessOutcome,
   SubprocessTerminalForeground,
