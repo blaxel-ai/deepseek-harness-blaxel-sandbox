@@ -33,7 +33,7 @@
       "node-pty"
     ],
     "overrides": {
-      "js-yaml": "4.3.1",
+      "js-yaml": "5.4.1",
       "fast-uri": "3.1.7",
       "qs": "6.16.0"
     }
@@ -166,7 +166,7 @@
     "@types/ws": "^8.18.1",
     "esbuild": "^0.25.0",
     "fast-uri": "^3.1.7",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^5.4.1",
     "oxlint": "^1.11.2",
     "publint": "^0.3.12",
     "qs": "^6.16.0",
