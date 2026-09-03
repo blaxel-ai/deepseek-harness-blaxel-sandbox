@@ -28,7 +28,7 @@ DeepSeek Harness is in developer preview and its plugin contracts change between
 
 | Plugin | DSH host | Node.js |
 | -- | -- | -- |
-| `0.1.1` | `0.1.2-rc.1` | 22, 24 |
+| `0.1.2`, `0.1.1` | `0.1.2-rc.1` | 22, 24 |
 | `0.1.0` | `0.1.1-rc.2` | 22, 24 |
 
 When DSH publishes a new version, the plugin is re-verified against it and, when a Host contract moved, a new plugin release pins the new version. Older hosts keep the last plugin release that pinned them.
@@ -117,3 +117,4 @@ Do not run the live test without authorization to use the target Blaxel workspac
 - A running turn cannot be moved into a sandbox session.
 - Moving is an explicit round trip, not continuous synchronization. `Return to local` conflict-checks sandbox changes against the original worktree, applies them only when safe, stops that sandbox, and keeps the same DSH session local. The session can later move into a fresh sandbox again.
 - Each runtime is deleted only when stopped. Restarting DSH reconnects the same native session to its existing sandbox.
+- Telemetry is limited to attribution: Blaxel API and sandbox requests carry the Blaxel SDK `User-Agent` with `deepseek-harness-blaxel-sandbox/<version>` appended. Nothing is collected from DSH, the conversation, or the workspace.

@@ -1,6 +1,6 @@
 {
   "name": "@blaxel/dsh-sandbox",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Blaxel sandbox execution plugin for DeepSeek Harness (DSH)",
   "keywords": [
     "agent-sandbox",

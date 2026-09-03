@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import { getConfiguration, getWorkspace, listSandboxHubDefinitions, listSandboxes, settings as sdkSettings } from '@blaxel/core'
+import './shared/integration-user-agent.js'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 const runFile = promisify(execFile)

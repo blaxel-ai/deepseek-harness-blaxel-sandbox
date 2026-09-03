@@ -37,7 +37,7 @@ dsh web
 
 ## Current contract
 
-- Package version: 0.1.1.
+- Package version: 0.1.2.
 - DSH package contract: 0.1.2-rc.1 components with @deepseek-ai/cordis 4.x. Plugin 0.1.0 is the last release for DSH 0.1.1-rc.2.
 - Default image: blaxel/ts-app:latest.
 - Default memory: 4096 MB.
@@ -51,6 +51,7 @@ dsh web
 - Restart behavior: reconnect the same native session to its persisted sandbox binding.
 - Return behavior: conflict-check and apply a bounded Git patch to the original worktree, delete that sandbox, then resume local tools in the same session.
 - Synchronization model: explicit round trips, not continuous bidirectional synchronization.
+- Telemetry: attribution only. Blaxel requests append deepseek-harness-blaxel-sandbox/<version> to the Blaxel SDK User-Agent; no other data is collected or sent.
 
 ## Authentication
 
