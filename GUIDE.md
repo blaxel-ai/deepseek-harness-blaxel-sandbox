@@ -116,7 +116,7 @@ The same conversation, automatic title, sidebar row, and selected page remain in
 
 ## Identify a sandbox session
 
-Sandbox sessions have an indented container marker in the normal sidebar. The active chat also has a subtle edge glow and a Running on Blaxel strip above the composer.
+Sandbox sessions have an indented container marker in the normal sidebar. The active chat also has a subtle edge glow and a Running on Blaxel strip above the composer. Next to the send button, a chip states the connection: **On Blaxel** while connected, **Connecting…** while the sandbox starts, and **Reconnect Blaxel** when the sandbox is unavailable. Selecting that chip reconnects in place; a local session shows **Move to Blaxel** in the same spot.
 
 Select the strip to open the exact sandbox in Blaxel Console. The DSH session remains on the current page.
 
@@ -169,7 +169,9 @@ The reconnect flow can refresh only that bound workspace while sandboxes exist. 
 | Model setup appears before launch | The selected model route has no usable host credential | Save the requested provider credential in DSH and continue |
 | Workspace choices cannot be verified | Authentication, workspace access, or provider discovery failed | Reconnect the account and select Verify connection |
 | A recovered sandbox shows an authentication error | Its Blaxel OAuth token expired while DSH was stopped | Use Reconnect account for the same workspace |
-| Return to local reports a conflict | The original local files changed since the sandbox baseline | Resolve or revert the local conflict, then retry without discarding the sandbox |
+| A tool fails with "The sandbox no longer exists." and the chip reads Reconnect Blaxel | The sandbox was deleted or expired while the session was connected | Choose Reconnect and confirm to start a fresh sandbox, or Continue locally to drop it. Idle sessions are probed every 30 seconds and flip to unavailable on their own |
+| A sandbox shows as unavailable and Reconnect says it no longer exists | The sandbox was deleted or expired while DSH was away | Choose Reconnect and confirm to start a fresh sandbox from your current local files, or choose Continue locally to drop it. Changes that existed only in the lost sandbox cannot be recovered |
+| Return to local reports a conflict | The original local files changed since the sandbox baseline | Nothing was applied and the sandbox keeps running. The sandbox patch is saved under `.git/dsh-blaxel/` in the repository; resolve or revert the local conflict and retry, or merge it with `git apply --3way <patch>` |
 | Return to local rejects the patch | The patch exceeded the 1 MiB transfer limit, was truncated, or targeted an unsafe path | Keep the sandbox running and preserve or reduce the remote change before retrying |
 | A remote tool fails | The sandbox command, filesystem, or connection failed | Read the tool error or reconnect the sandbox; the plugin never falls back to host execution |
 

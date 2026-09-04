@@ -43,6 +43,27 @@ describe('remote subprocess routing', () => {
     expect(() => remoteArgv(['sandbox-exec', '-p', 'profile'])).toThrow('invalid sandbox-exec wrapper')
   })
 
+  it('fails closed and explains that an unavailable sandbox session is not local', async () => {
+    const localResolve = vi.fn(async () => '/host/bash')
+    const local = { resolveExecutable: localResolve } as unknown as SubprocessRuntime
+    const ctx = {
+      agents: {
+        currentInitiator: () => ({ id: 'sandbox-session' }),
+        list: () => [{ id: 'sandbox-session' }],
+        isOwnedBy: () => false,
+      },
+      blaxelSessions: {
+        get: () => undefined,
+        isSandboxSession: (sessionId: string | undefined) => sessionId === 'sandbox-session',
+      },
+    } as unknown as Context
+
+    expect(() => routingRuntime(ctx, local).resolveExecutable('bash')).toThrow(
+      'still bound to an unavailable Blaxel sandbox. Local tools are blocked',
+    )
+    expect(localResolve).not.toHaveBeenCalled()
+  })
+
   it('ignores a forged environment session id when selecting the backend', async () => {
     const remoteResolve = vi.fn(async () => '/sandbox/bash')
     const localResolve = vi.fn(async () => '/host/bash')

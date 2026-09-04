@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { lstat, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
@@ -76,6 +76,23 @@ async function assertSafeHostTargets(repoRoot: string, patchPath: string): Promi
   }
 }
 
+async function patchAlreadyApplied(repoRoot: string, patchPath: string): Promise<boolean> {
+  try {
+    await execFileAsync('git', [
+      '-C', repoRoot,
+      'apply',
+      '--reverse',
+      '--check',
+      '--binary',
+      '--whitespace=nowarn',
+      patchPath,
+    ], { encoding: 'utf8', maxBuffer: MAX_GIT_OUTPUT_BYTES })
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function gitApply(repoRoot: string, patchPath: string, check: boolean): Promise<void> {
   try {
     await execFileAsync('git', [
@@ -96,6 +113,24 @@ async function gitApply(repoRoot: string, patchPath: string, check: boolean): Pr
   }
 }
 
+/**
+ * Keeps a conflicting patch inside the repository's private Git directory so the
+ * work is never lost when the automatic transfer has to fail closed. The Git
+ * directory is resolved through git itself so linked worktrees are handled.
+ */
+async function preserveConflictingPatch(repoRoot: string, patch: DivergencePatch): Promise<string> {
+  const { stdout } = await execFileAsync('git', ['-C', repoRoot, 'rev-parse', '--absolute-git-dir'], {
+    encoding: 'utf8',
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+  })
+  const directory = join(stdout.trim(), 'dsh-blaxel')
+  await mkdir(directory, { mode: 0o700, recursive: true })
+  const stamp = patch.checkedAt.replaceAll(/[^0-9A-Za-z]/g, '').slice(0, 14)
+  const path = join(directory, `sandbox-${stamp}.patch`)
+  await writeFile(path, patch.text, { encoding: 'utf8', mode: 0o600 })
+  return path
+}
+
 /** Conflict-checks and applies one bounded sandbox patch to its original worktree. */
 export async function applySandboxPatch(repoRoot: string, patch: DivergencePatch): Promise<void> {
   if (patch.truncated) throw new Error('Sandbox changes exceed the automatic 1 MiB patch limit')
@@ -107,7 +142,16 @@ export async function applySandboxPatch(repoRoot: string, patch: DivergencePatch
   try {
     await writeFile(patchPath, patch.text, { encoding: 'utf8', mode: 0o600 })
     await assertSafeHostTargets(workspace.repoRoot, patchPath)
-    await gitApply(workspace.repoRoot, patchPath, true)
+    try {
+      await gitApply(workspace.repoRoot, patchPath, true)
+    } catch (error) {
+      if (await patchAlreadyApplied(workspace.repoRoot, patchPath)) return
+      const kept = await preserveConflictingPatch(workspace.repoRoot, patch)
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)}. The sandbox changes were saved to ${kept}; `
+        + `the sandbox is still running. Resolve the local conflict and retry, or merge the saved patch with \`git apply --3way\`.`,
+      )
+    }
     await gitApply(workspace.repoRoot, patchPath, false)
   } finally {
     await rm(directory, { force: true, recursive: true })

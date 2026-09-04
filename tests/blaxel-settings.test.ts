@@ -79,6 +79,24 @@ describe('Blaxel settings', () => {
     expect(resetSdk).toHaveBeenCalledWith('team-one')
   })
 
+  it('keeps a working connection when proactive CLI refresh is broken', async () => {
+    const cliConfig = join(directory, '.blaxel', 'config.yaml')
+    await mkdir(join(directory, '.blaxel'))
+    await writeFile(cliConfig, `context:\n  workspace: team-one\nworkspaces:\n  - name: team-one\n    credentials:\n      access_token: working-access\n      refresh_token: old-refresh\n      device_code: device-code\n`)
+    const manager = new BlaxelSettingsManager({ cliConfig, defaults: join(directory, 'defaults.json') })
+    const internal = manager as unknown as {
+      runCli: (args: string[]) => Promise<void>
+      resetSdk: (workspace: string) => Promise<void>
+      connectionStillWorks: () => Promise<boolean>
+    }
+    vi.spyOn(internal, 'runCli').mockRejectedValue(new Error('failed to refresh token'))
+    const resetSdk = vi.spyOn(internal, 'resetSdk').mockResolvedValue()
+    vi.spyOn(internal, 'connectionStillWorks').mockResolvedValue(true)
+
+    await expect(manager.refreshAuthentication('team-one')).resolves.toBeUndefined()
+    expect(resetSdk).toHaveBeenCalledWith('team-one')
+  })
+
   it('completes browser OAuth without sending tokens to the browser', async () => {
     const cliConfig = join(directory, '.blaxel', 'config.yaml')
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {

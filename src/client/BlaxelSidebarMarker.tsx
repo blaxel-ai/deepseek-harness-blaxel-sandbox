@@ -8,7 +8,7 @@ const CONTAINER_MASK = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 
 /** Uses DSH's native leading icon slot instead of competing with row pseudo-elements. */
 export const SIDEBAR_MARKER_CSS = `
-[role="treeitem"][${ATTRIBUTE}="true"] > span:first-child {
+[role="treeitem"][${ATTRIBUTE}] > span:first-child {
   align-self: center;
   background-color: currentColor;
   color: var(--dsw-alias-state-business-primary, #6da7ff);
@@ -19,6 +19,10 @@ export const SIDEBAR_MARKER_CSS = `
   -webkit-mask: ${CONTAINER_MASK} center / contain no-repeat;
   mask: ${CONTAINER_MASK} center / contain no-repeat;
   width: 14px;
+}
+[role="treeitem"][${ATTRIBUTE}="failed"] > span:first-child {
+  color: var(--dsw-alias-state-warn-primary, #f59e0b);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f59e0b) 72%, transparent));
 }
 `
 
@@ -62,8 +66,11 @@ export function BlaxelSidebarMarker(props: BlaxelSidebarMarkerProps): ReactNode 
   const sessions = props.useSessions(state => state)
   const status = useBlaxelStatus()
   const sandboxIds = useMemo(() => status?.sandboxes.map(item => item.sessionId) ?? [], [status])
+  const failedIds = useMemo(() => status?.sandboxes.filter(item => item.state === 'failed').map(item => item.sessionId) ?? [], [status])
+  const startingIds = useMemo(() => status?.sandboxes.filter(item => item.state === 'creating' || item.state === 'restoring').map(item => item.sessionId) ?? [], [status])
   const titles = useMemo(() => sandboxRowTitles(sessions, sandboxIds), [sessions, sandboxIds])
-  const selectedSandbox = sessions.current !== undefined && sandboxIds.includes(sessions.current)
+  const failedTitles = useMemo(() => sandboxRowTitles(sessions, failedIds), [sessions, failedIds])
+  const startingTitles = useMemo(() => sandboxRowTitles(sessions, startingIds), [sessions, startingIds])
 
   useEffect(() => {
     let style = document.getElementById(STYLE_ID)
@@ -78,9 +85,13 @@ export function BlaxelSidebarMarker(props: BlaxelSidebarMarkerProps): ReactNode 
       document.querySelectorAll<HTMLElement>(`[${ATTRIBUTE}]`).forEach(row => row.removeAttribute(ATTRIBUTE))
       document.querySelectorAll<HTMLElement>('[role="treeitem"]').forEach(row => {
         if (row.hasAttribute('aria-expanded')) return
-        const selected = row.getAttribute('aria-selected') === 'true'
         const text = row.textContent?.trim() ?? ''
-        if ((selected && selectedSandbox) || titles.some(title => text.startsWith(title))) row.setAttribute(ATTRIBUTE, 'true')
+        const state = failedTitles.some(title => text.startsWith(title))
+          ? 'failed'
+          : startingTitles.some(title => text.startsWith(title))
+            ? 'restoring'
+            : titles.some(title => text.startsWith(title)) ? 'ready' : undefined
+        if (state !== undefined) row.setAttribute(ATTRIBUTE, state)
       })
     }
 
@@ -91,7 +102,7 @@ export function BlaxelSidebarMarker(props: BlaxelSidebarMarkerProps): ReactNode 
       observer.disconnect()
       document.querySelectorAll<HTMLElement>(`[${ATTRIBUTE}]`).forEach(row => row.removeAttribute(ATTRIBUTE))
     }
-  }, [selectedSandbox, titles])
+  }, [failedTitles, startingTitles, titles])
 
   return null
 }

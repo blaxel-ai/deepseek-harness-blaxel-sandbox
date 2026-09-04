@@ -7,6 +7,7 @@ import { BlaxelSettings } from './BlaxelSettings.js'
 export const inject = ['slots', 'sessions', 'conversation']
 
 const BLOCK_PREFIX = 'Blaxel sandbox: '
+const UNAVAILABLE_BLOCK = `${BLOCK_PREFIX}Sandbox unavailable. This session is still sandboxed, not local. Reconnect, or continue locally to drop the sandbox.`
 
 export function apply(ctx: BlaxelClientContext): void {
   const setComposerBlock = (sessionId: string, reason?: string): void => {
@@ -20,12 +21,24 @@ export function apply(ctx: BlaxelClientContext): void {
     }
     if (current?.reason.startsWith(BLOCK_PREFIX) === true) blocks.set(sessionId, undefined)
   }
+  const setUnavailableBlock = (sessionId: string, unavailable: boolean): void => {
+    const blocks = ctx.conversation.blocks
+    const current = blocks.storeFor(sessionId).getSnapshot()
+    if (unavailable) {
+      if (current === undefined || current.reason === UNAVAILABLE_BLOCK) blocks.set(sessionId, { reason: UNAVAILABLE_BLOCK })
+      return
+    }
+    if (current?.reason === UNAVAILABLE_BLOCK) blocks.set(sessionId, undefined)
+  }
   const ComposerAction = (props: Omit<BlaxelComposerActionProps, 'openSession' | 'setComposerBlock'>): ReturnType<typeof BlaxelComposerAction> => (
     BlaxelComposerAction({
       ...props,
       openSession: sessionId => ctx.sessions.open(sessionId),
       setComposerBlock,
     })
+  )
+  const SandboxBanner = (props: { sessionId: string }): ReturnType<typeof BlaxelSandboxBanner> => (
+    BlaxelSandboxBanner({ sessionId: props.sessionId, setUnavailableBlock })
   )
 
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
@@ -38,7 +51,7 @@ export function apply(ctx: BlaxelClientContext): void {
     name: 'conversation.input.dock',
     id: 'blaxel-sandbox-banner',
     order: 80,
-  }, BlaxelSandboxBanner))
+  }, SandboxBanner))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

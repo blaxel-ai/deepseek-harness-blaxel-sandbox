@@ -8,6 +8,7 @@ import {
   readLoginRequest,
   readModelCredentialRequest,
   readMoveRequest,
+  readReconnectRequest,
   readSessionRequest,
   readWorkspaceRequest,
   routeAction,
@@ -17,9 +18,13 @@ import { configureMissingModelCredential, inspectModelReadiness, requireReadyMod
 import { inspectGitWorkspace } from './web/workspace-snapshot.js'
 
 export const name = 'dsh-blaxel-web'
+
+/** Error code the client turns into a consent prompt before a lost sandbox is replaced. */
+export const SANDBOX_MISSING = 'sandbox-missing'
 export const inject = [
   'webServer',
   'sessionController',
+  'sessionProjections',
   'workspaceController',
   'settingsController',
   'credentialsController',
@@ -51,7 +56,7 @@ async function handleOpen(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: 
     writeJson(res, 200, { ok: true, sessionId: created.sessionId })
   } catch (error) {
     if (prepared !== undefined) await ctx.blaxelSessions.discard(prepared)
-    writeJson(res, 500, { ok: false, error: error instanceof Error ? error.message : 'Could not start the sandbox session' })
+    writeJson(res, 500, { ok: false, error: error instanceof Error ? error.message : 'Could not create the sandbox session' })
   }
 }
 
@@ -70,6 +75,26 @@ async function handleMove(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: 
   } catch (error) {
     if (prepared !== undefined) await ctx.blaxelSessions.discard(prepared)
     writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'Could not create the sandbox session' })
+  }
+}
+
+async function handleReconnect(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: BlaxelWebContext): Promise<void> {
+  if (!permitsAction(req, 'reconnect')) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
+  try {
+    const { sessionId, recreate } = await readReconnectRequest(req)
+    const result = await ctx.blaxelSessions.reconnect(sessionId)
+    if (result === 'missing') {
+      // Replacing a lost sandbox discards whatever lived only inside it, so it
+      // never happens without the user's explicit consent.
+      if (!recreate) return writeJson(res, 409, { ok: false, error: SANDBOX_MISSING })
+      if (!await sourceIsIdle(ctx, sessionId)) throw new Error('Wait for the current turn to finish before reconnecting this sandbox')
+      await requireReadyModel(ctx, sessionId)
+      await ctx.blaxelSessions.recreateMissing(sessionId)
+      return writeJson(res, 200, { ok: true, outcome: 'recreated' })
+    }
+    writeJson(res, 200, { ok: true, outcome: 'reconnected' })
+  } catch (error) {
+    writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'Could not reconnect the sandbox' })
   }
 }
 
@@ -151,6 +176,7 @@ export function apply(ctx: BlaxelWebContext): void {
       }
       if (action === 'open' && req.method === 'POST') return await handleOpen(req, res, ctx)
       if (action === 'move' && req.method === 'POST') return await handleMove(req, res, ctx)
+      if (action === 'reconnect' && req.method === 'POST') return await handleReconnect(req, res, ctx)
       if (action === 'divergence' && req.method === 'POST') return await handleDivergence(req, res, ctx)
       if (action === 'sync-local' && req.method === 'POST') return await handleSyncLocal(req, res, ctx)
       if (action === 'close' && req.method === 'POST') return await handleClose(req, res, ctx)

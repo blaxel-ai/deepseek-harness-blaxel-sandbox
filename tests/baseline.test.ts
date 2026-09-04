@@ -25,7 +25,7 @@ describe('divergence baseline lifecycle', () => {
     expect(command).toContain('bash -o pipefail -c')
     expect(command).toContain('git init --quiet --bare')
     expect(command).toContain('config core.bare false')
-    expect(command).toContain('gitdir: %s\\n')
+    expect(command).toMatch(/\{ test -d \S*\/workspace\/\.git\S* \|\| printf \S*gitdir: %s/)
     expect(command).toContain(' add -A')
     expect(command).toContain(' commit --quiet')
     expect(command).toContain('update-ref')
@@ -43,6 +43,9 @@ describe('divergence baseline lifecycle', () => {
     expect(command).toContain('update-ref')
     expect(command).toContain('$commit')
     expect(command).toContain('config core.worktree')
+    // An agent that ran `git init` in /workspace keeps its repository; the
+    // baseline pairs through --git-dir and only writes the pointer when free.
+    expect(command).toMatch(/\{ test -d \S*\/workspace\/\.git\S* \|\| printf \S*gitdir: %s/)
     expect(command).not.toContain('git init')
     expect(command).not.toContain(' add -A')
     expect(command).not.toContain(' commit ')

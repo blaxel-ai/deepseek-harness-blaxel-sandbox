@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { providerDisplayName } from '../src/shared/model-readiness.js'
 import { configureMissingModelCredential, inspectModelReadiness } from '../src/web/model-readiness.js'
 
 function harness(options: { configured?: boolean; routable?: boolean; apiKeyEnv?: string } = {}) {
@@ -34,6 +35,14 @@ function harness(options: { configured?: boolean; routable?: boolean; apiKeyEnv?
 }
 
 describe('model readiness', () => {
+  it('presents vendor names when DSH only knows the lowercase provider id', () => {
+    expect(providerDisplayName('openai')).toBe('OpenAI')
+    expect(providerDisplayName('openai', 'openai')).toBe('OpenAI')
+    expect(providerDisplayName('deepseek', 'deepseek')).toBe('DeepSeek')
+    expect(providerDisplayName('openai', 'Work OpenAI')).toBe('Work OpenAI')
+    expect(providerDisplayName('my-proxy', 'my-proxy')).toBe('my-proxy')
+  })
+
   it('reports the selected model ready without returning credential values', async () => {
     const { ctx } = harness()
     await expect(inspectModelReadiness(ctx as never, 'session-1')).resolves.toEqual({

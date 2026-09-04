@@ -1,9 +1,9 @@
 import { Buffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
 import type { BlaxelHttpRequest, BlaxelHttpResponse, BlaxelWebRoute } from '../src/web/context.js'
-import { apply } from '../src/web.js'
+import { apply, inject } from '../src/web.js'
 
-function request(action: 'open' | 'move', body: object): BlaxelHttpRequest {
+function request(action: 'open' | 'move' | 'reconnect' | 'sync-local', body: object): BlaxelHttpRequest {
   const encoded = Buffer.from(JSON.stringify(body))
   const req = {
     method: 'POST',
@@ -56,6 +56,10 @@ function readyModelApi() {
 }
 
 describe('Blaxel Web routing', () => {
+  it('injects the session projection used to resolve the active model', () => {
+    expect(inject).toContain('sessionProjections')
+  })
+
   it('adopts and binds the current native session inside its workspace', async () => {
     let route: BlaxelWebRoute | undefined
     const prepared = { marker: true }
@@ -126,6 +130,76 @@ describe('Blaxel Web routing', () => {
     expect(target.status()).toBe(200)
     expect(target.body()).toEqual({ ok: true, sessionId: 'local-session' })
     expect(bind).toHaveBeenCalledWith(prepared, 'local-session', undefined)
+  })
+
+  it('reconnects an unavailable sandbox binding in place', async () => {
+    let route: BlaxelWebRoute | undefined
+    const reconnect = vi.fn(async () => undefined)
+    const ctx = {
+      effect: (setup: () => unknown) => setup(),
+      webServer: { register: (registered: BlaxelWebRoute) => { route = registered; return () => undefined } },
+      blaxelSessions: { reconnect },
+    }
+    apply(ctx as never)
+    if (route === undefined) throw new Error('Blaxel Web route was not registered')
+
+    const target = response()
+    await route.handler(request('reconnect', { sessionId: 'remote-session' }), target.res)
+    expect(target.status()).toBe(200)
+    expect(target.body()).toEqual({ ok: true, outcome: 'reconnected' })
+    expect(reconnect).toHaveBeenCalledWith('remote-session')
+  })
+
+  it('creates a replacement when reconnect confirms the sandbox is gone', async () => {
+    let route: BlaxelWebRoute | undefined
+    const recreateMissing = vi.fn(async () => undefined)
+    const modelApi = readyModelApi()
+    const ctx = {
+      effect: (setup: () => unknown) => setup(),
+      webServer: { register: (registered: BlaxelWebRoute) => { route = registered; return () => undefined } },
+      ...modelApi,
+      sessionController: {
+        ...modelApi.sessionController,
+        list: vi.fn(async () => ({ items: [{ sessionId: 'remote-session', running: false }] })),
+      },
+      blaxelSessions: {
+        reconnect: vi.fn(async () => 'missing'),
+        recreateMissing,
+      },
+    }
+    apply(ctx as never)
+    if (route === undefined) throw new Error('Blaxel Web route was not registered')
+
+    const asked = response()
+    await route.handler(request('reconnect', { sessionId: 'remote-session' }), asked.res)
+    expect(asked.status()).toBe(409)
+    expect(asked.body()).toEqual({ ok: false, error: 'sandbox-missing' })
+    expect(recreateMissing).not.toHaveBeenCalled()
+
+    const consented = response()
+    await route.handler(request('reconnect', { sessionId: 'remote-session', recreate: true }), consented.res)
+    expect(consented.status()).toBe(200)
+    expect(consented.body()).toEqual({ ok: true, outcome: 'recreated' })
+    expect(recreateMissing).toHaveBeenCalledWith('remote-session')
+  })
+
+  it('refuses to move changes home while the session is still running a turn', async () => {
+    let route: BlaxelWebRoute | undefined
+    const moveChangesLocal = vi.fn()
+    const ctx = {
+      effect: (setup: () => unknown) => setup(),
+      webServer: { register: (registered: BlaxelWebRoute) => { route = registered; return () => undefined } },
+      sessionController: { list: vi.fn(async () => ({ items: [{ sessionId: 'remote-session', running: true }] })) },
+      blaxelSessions: { moveChangesLocal },
+    }
+    apply(ctx as never)
+    if (route === undefined) throw new Error('Blaxel Web route was not registered')
+
+    const target = response()
+    await route.handler(request('sync-local', { sessionId: 'remote-session' }), target.res)
+    expect(target.status()).toBe(422)
+    expect(target.body()).toEqual({ ok: false, error: 'Wait for the current turn to finish before moving changes locally' })
+    expect(moveChangesLocal).not.toHaveBeenCalled()
   })
 
   it('discards the sandbox if the session starts running before the handoff', async () => {

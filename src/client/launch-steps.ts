@@ -19,7 +19,7 @@ export interface LaunchLine {
   state: 'done' | 'active' | 'waiting'
 }
 
-function label(step: LaunchStep, kind: LaunchProgress['kind']): string {
+function label(step: LaunchStep): string {
   switch (step) {
     case 'inspecting': return 'Checking the Git worktree'
     case 'listing': return 'Finding workspace files'
@@ -27,7 +27,7 @@ function label(step: LaunchStep, kind: LaunchProgress['kind']): string {
     case 'archiving': return 'Preparing the workspace snapshot'
     case 'session': return 'Preparing the session handoff'
     case 'starting': return 'Starting the Blaxel sandbox'
-    case 'ready': return kind === 'move' ? 'Ready on Blaxel' : 'Ready on Blaxel'
+    case 'ready': return 'Ready on Blaxel'
   }
 }
 
@@ -53,7 +53,7 @@ export function launchLines(progress: LaunchProgress): LaunchLine[] {
   const current = steps.indexOf(progress.step)
   return steps.map((step, index) => ({
     step,
-    label: label(step, progress.kind),
+    label: label(step),
     ...(index === current ? { detail: detail(step, progress) } : {}),
     state: index < current ? 'done' : index === current ? 'active' : 'waiting',
   }))

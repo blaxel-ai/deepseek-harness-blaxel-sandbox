@@ -6,6 +6,22 @@ export interface ClientSessionListState {
   current?: string
 }
 
+/** The part of DSH's per-session snapshot the Blaxel surfaces read. */
+export interface ClientSessionSnapshot {
+  sessionId: string
+  running: boolean
+}
+
+/**
+ * Standard props DSH hands every entry in a session-scoped slot (DSH 0.1.2):
+ * the session identity plus selector hooks, never a plain session object.
+ */
+export interface SessionSlotProps {
+  sessionId: string
+  useSession: <T>(selector: (snapshot: ClientSessionSnapshot) => T) => T
+  useSessions: <T>(selector: (state: ClientSessionListState) => T) => T
+}
+
 export interface ClientSessions {
   list: {
     getSnapshot(): ClientSessionListState

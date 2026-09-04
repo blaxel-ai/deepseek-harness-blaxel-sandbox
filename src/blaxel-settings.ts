@@ -422,10 +422,10 @@ export class BlaxelSettingsManager {
       try {
         await this.runCli(['token', '--workspace', selectedWorkspace, '--skip-version-warning'])
       } catch (error) {
-        if (/refresh_token|refresh token|unauthorized|expired/i.test(error instanceof Error ? error.message : String(error))) {
-          throw new Error('This Blaxel sign-in has expired. Sign in to Blaxel again.')
-        }
-        throw error
+        if (!/refresh_token|refresh token|unauthorized|expired/i.test(error instanceof Error ? error.message : String(error))) throw error
+        await this.resetSdk(selectedWorkspace)
+        if (await this.connectionStillWorks()) return
+        throw new Error('This Blaxel sign-in has expired. Sign in to Blaxel again.')
       }
     }
     await this.resetSdk(selectedWorkspace)
@@ -599,6 +599,12 @@ export class BlaxelSettingsManager {
     const temporary = `${this.paths.cliConfig}.${String(process.pid)}.tmp`
     await writeFile(temporary, stringifyYaml(output), { mode: 0o600 })
     await rename(temporary, this.paths.cliConfig)
+  }
+
+  /** A CLI refresh can fail while its still-valid access token continues to work. */
+  private async connectionStillWorks(): Promise<boolean> {
+    const result = await listSandboxes({ query: { limit: 1 } })
+    return result.error === undefined
   }
 
   private async resetSdk(workspace: string): Promise<void> {

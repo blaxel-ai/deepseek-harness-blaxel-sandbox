@@ -230,13 +230,13 @@ export class BlaxelDivergence {
       timeoutSeconds: Math.round(EXEC_TIMEOUT_MS / 1000),
     }), EXEC_TIMEOUT_MS, `The ${label} report`)
     if (result.exitCode === STATUS_FAILED_EXIT) {
-      throw new Error(`git could not read the workspace status: ${result.stderr || result.logs || 'no detail'}`)
+      throw new Error(`Git could not read the workspace status: ${result.stderr || result.logs || 'no detail'}`)
     }
     if (result.exitCode === DIFF_FAILED_EXIT) {
-      throw new Error(`git could not diff against the baseline: ${result.stderr || result.logs || 'no detail'}`)
+      throw new Error(`Git could not diff against the baseline: ${result.stderr || result.logs || 'no detail'}`)
     }
     if (result.exitCode !== 0 && result.exitCode !== SIGPIPE_EXIT) {
-      throw new Error(result.stderr || result.logs || `git exited with code ${String(result.exitCode)}`)
+      throw new Error(result.stderr || result.logs || `Git exited with code ${String(result.exitCode)}`)
     }
     return result.stdout ?? ''
   }

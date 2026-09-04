@@ -47,8 +47,16 @@ export class BlaxelProcessHandle implements SubprocessHandle {
       final: callback => { void this.closeStdin().then(() => callback(), callback) },
     }) : undefined
     this.ready = this.readyState.promise
+    // Consumers that await `ready` still see the failure; nobody else must, or
+    // one lost sandbox becomes an unhandled rejection that takes DSH down.
+    void this.ready.catch(() => {})
     this.id = `dsh-${randomUUID()}`
-    this.done = this.start().catch(error => { this.readyState.reject(error); throw error })
+    this.done = this.start().catch((error: unknown) => {
+      // A vanished sandbox reads as one sentence, not the platform's retry manifesto.
+      const failure = this.runtime.markUnavailable(error) ? new Error(this.runtime.unavailableReason ?? String(error)) : error
+      this.readyState.reject(failure)
+      throw failure
+    })
     void this.done.catch(() => {})
   }
 
@@ -64,7 +72,7 @@ export class BlaxelProcessHandle implements SubprocessHandle {
       this.stream?.close()
       this.stdout?.destroy()
       this.stderr?.destroy()
-    })
+    }, () => undefined)
   }
 
   async waitForExit(signal?: AbortSignal): Promise<boolean> {
@@ -94,7 +102,7 @@ export class BlaxelProcessHandle implements SubprocessHandle {
       onStderr: chunk => this.onOutput('stderr', chunk),
       onError: error => { this.stdout?.destroy(error); this.stderr?.destroy(error) },
     })
-    if (typeof this.spec.stdio.stdin === 'object') void this.writeStdin(this.spec.stdio.stdin.data).then(() => this.closeStdin(), () => undefined)
+    if (typeof this.spec.stdio.stdin === 'object') void this.writeStdin(this.spec.stdio.stdin.data).then(() => this.closeStdin()).catch(() => undefined)
     try {
       await this.stream.wait()
       const result = await sandbox.process.wait(id, { maxWait: Math.max(1, this.spec.graceMs), interval: 50 }).catch(() => sandbox.process.get(id))

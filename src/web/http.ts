@@ -6,7 +6,7 @@ const MAX_BODY_BYTES = 8 * 1024
 const LOCAL_ORIGIN = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/
 
 export type AuthorizedAction =
-  | 'check' | 'open' | 'close' | 'move' | 'divergence' | 'sync-local' | 'configure' | 'workspace' | 'login' | 'logout' | 'test'
+  | 'check' | 'open' | 'close' | 'move' | 'reconnect' | 'divergence' | 'sync-local' | 'configure' | 'workspace' | 'login' | 'logout' | 'test'
   | 'oauth-start' | 'oauth-poll' | 'oauth-complete' | 'install-skills' | 'mcp-login' | 'mcp-logout'
   | 'model-readiness' | 'model-credential'
 
@@ -133,6 +133,12 @@ export async function readMoveRequest(req: BlaxelHttpRequest): Promise<LaunchReq
 export async function readSessionRequest(req: BlaxelHttpRequest): Promise<{ sessionId: string }> {
   const body = await readJsonBody(req)
   return { sessionId: sessionIdOf(body) }
+}
+
+/** `recreate` is the user's explicit consent to replace a sandbox that no longer exists. */
+export async function readReconnectRequest(req: BlaxelHttpRequest): Promise<{ sessionId: string; recreate: boolean }> {
+  const body = await readJsonBody(req)
+  return { sessionId: sessionIdOf(body), recreate: body.recreate === true }
 }
 
 function sessionIdOf(body: Record<string, unknown>): string {

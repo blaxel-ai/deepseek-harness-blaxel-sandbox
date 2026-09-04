@@ -75,7 +75,8 @@ export class BlaxelSubprocessRuntime extends SubprocessRuntime {
       cwd: this.ctx.blaxel.toRemotePath(spec.cwd),
     })
     this.live.add(handle)
-    void handle.done.finally(() => this.live.delete(handle))
+    // `done` rejects when the sandbox is gone; a bare .finally() would re-raise that as an unhandled rejection.
+    void handle.done.then(() => this.live.delete(handle), () => this.live.delete(handle))
     if (spec.signal !== undefined) spec.signal.addEventListener('abort', () => handle.terminate(), { once: true })
     return handle
   }
