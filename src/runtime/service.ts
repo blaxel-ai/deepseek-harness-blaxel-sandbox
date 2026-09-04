@@ -35,6 +35,17 @@ export interface Config extends Omit<SandboxCreateConfiguration, 'name'> {
 /** How far `open()` has got. The Blaxel window reports this instead of waiting. */
 export type BlaxelPhase = 'creating' | 'restoring' | 'ready' | 'failed'
 
+/** How often a connected sandbox is re-checked against the platform while status is polled. */
+export const SANDBOX_PROBE_INTERVAL_MS = 30_000
+export const SANDBOX_GONE = 'The sandbox no longer exists.'
+
+/** Platform answers that mean the sandbox is gone rather than busy or slow. */
+export function sandboxIsGone(error: unknown): boolean {
+  const candidate = typeof error === 'object' && error !== null ? error as Record<string, unknown> : undefined
+  const text = error instanceof Error ? error.message : typeof candidate?.message === 'string' ? candidate.message : String(error)
+  return candidate?.code === 404 || /status 404|not found|terminated|deleting/i.test(text)
+}
+
 /** Point-in-time sandbox facts recorded when the instance was created or last read. */
 export interface BlaxelSandboxFacts {
   name: string
@@ -97,6 +108,8 @@ export class BlaxelRuntime extends Service {
   private environmentReady: Promise<ReadonlyMap<string, string>> | undefined
   private baseline: BlaxelBaseline | undefined
   private lifecycle: BlaxelPhase = 'creating'
+  private failureReason: string | undefined
+  private lastProbeAt: number | undefined
   private disposed = false
   private deleteOnDispose: boolean
 
@@ -121,8 +134,14 @@ export class BlaxelRuntime extends Service {
     return this.lifecycle
   }
 
+  /** Why the sandbox stopped being usable, once known. */
+  get unavailableReason(): string | undefined {
+    return this.failureReason
+  }
+
   async getSandbox(): Promise<SandboxInstance> {
     if (this.disposed) throw new Error('dsh-blaxel: service is disposing')
+    if (this.failureReason !== undefined) throw new Error(this.failureReason)
     const sandbox = await this.ready
     if (this.disposed) throw new Error('dsh-blaxel: service is disposing')
     return sandbox
@@ -130,7 +149,37 @@ export class BlaxelRuntime extends Service {
 
   async getSandboxEnvironment(): Promise<ReadonlyMap<string, string>> {
     this.environmentReady ??= this.getSandbox().then(sandbox => readSandboxEnvironment(sandbox, this.cwd))
-    return await this.environmentReady
+    return await this.environmentReady.catch((error: unknown) => {
+      this.environmentReady = undefined
+      throw error
+    })
+  }
+
+  /**
+   * Records that a platform call found the sandbox gone. Every later tool call
+   * fails fast with the same sentence and the session reports `failed`.
+   */
+  markUnavailable(error: unknown): boolean {
+    if (this.failureReason !== undefined) return true
+    if (!sandboxIsGone(error)) return false
+    this.failureReason = SANDBOX_GONE
+    this.lifecycle = 'failed'
+    this.ctx.logger.warn(`Blaxel sandbox unavailable: %s`, this.name)
+    return true
+  }
+
+  /** Cheap liveness check, at most once per interval, so a deleted sandbox is noticed without a tool call. */
+  async probe(now = Date.now()): Promise<void> {
+    if (this.lifecycle !== 'ready') return
+    if (this.lastProbeAt !== undefined && now - this.lastProbeAt < SANDBOX_PROBE_INTERVAL_MS) return
+    this.lastProbeAt = now
+    try {
+      const sandbox = await SandboxInstance.get(this.name)
+      const status = String(sandbox.status ?? '')
+      if (/failed|deleting|terminated/i.test(status)) this.markUnavailable(new Error(`Blaxel sandbox is ${status}`))
+    } catch (error) {
+      this.markUnavailable(error)
+    }
   }
 
   toRemotePath(path: string): string {

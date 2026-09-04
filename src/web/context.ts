@@ -36,13 +36,6 @@ export interface ModelSelection {
   model: string
 }
 
-interface ConfigurableProvider {
-  provider: string
-  displayName: string
-  settingsNs: string
-  settingsPath: readonly string[]
-}
-
 interface CredentialView {
   configured: boolean
   writable: boolean

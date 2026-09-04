@@ -143,10 +143,17 @@ export interface DivergenceSummary {
 }
 
 type Action =
-  | 'check' | 'open' | 'close' | 'move' | 'divergence' | 'sync-local' | 'configure' | 'workspace' | 'login' | 'logout' | 'test'
+  | 'check' | 'open' | 'close' | 'move' | 'reconnect' | 'divergence' | 'sync-local' | 'configure' | 'workspace' | 'login' | 'logout' | 'test'
   | 'oauth-start' | 'oauth-poll' | 'oauth-complete' | 'install-skills' | 'mcp-login' | 'mcp-logout'
   | 'model-readiness' | 'model-credential'
 type ApiSuccess = { ok: true }
+
+/** Turns the bridge's stable error codes into sentences; real messages pass through unchanged. */
+function userFacing(code: string): string {
+  if (code === 'action-not-authorized') return 'DSH Web refused this request as untrusted. Reload the page and try again.'
+  if (code === 'not-found') return 'This session is not open in DSH. Select it in the sidebar and try again.'
+  return code
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -163,10 +170,8 @@ async function call<T extends ApiSuccess>(path: string, action?: Action, body?: 
   })
   const payload: unknown = await response.json()
   if (!response.ok || !isRecord(payload) || payload.ok !== true) {
-    const message = isRecord(payload) && typeof payload.error === 'string'
-      ? payload.error
-      : `Request failed (${String(response.status)})`
-    throw new Error(message)
+    const code = isRecord(payload) && typeof payload.error === 'string' ? payload.error : undefined
+    throw new Error(code === undefined ? `The Blaxel request failed (HTTP ${String(response.status)})` : userFacing(code))
   }
   return payload as T
 }
@@ -201,6 +206,29 @@ export async function saveModelCredential(sessionId: string, credential: string)
 
 export async function closeBlaxel(sessionId: string): Promise<void> {
   await call<ApiSuccess>('close', 'close', { sessionId })
+}
+
+export type ReconnectOutcome = 'reconnected' | 'recreated'
+
+/** The bound sandbox is gone; replacing it needs the user's explicit consent. */
+export class SandboxMissingError extends Error {
+  constructor() {
+    super('The Blaxel sandbox for this session no longer exists.')
+    this.name = 'SandboxMissingError'
+  }
+}
+
+export async function reconnectBlaxelSandbox(sessionId: string, options: { recreate?: boolean } = {}): Promise<ReconnectOutcome> {
+  try {
+    const result = await call<ApiSuccess & { outcome: ReconnectOutcome }>('reconnect', 'reconnect', {
+      sessionId,
+      ...(options.recreate === true ? { recreate: true } : {}),
+    })
+    return result.outcome
+  } catch (error) {
+    if (error instanceof Error && error.message === 'sandbox-missing') throw new SandboxMissingError()
+    throw error
+  }
 }
 
 export async function inspectBlaxelChanges(sessionId: string): Promise<DivergenceSummary> {

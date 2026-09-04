@@ -28,6 +28,31 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
 
+  # Boots DSH Web with the linked plugin and drives it in Chromium.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Install DSH and link the plugin into the Web profile
+        run: |
+          DSH=$(node -p 'require("./package.json").peerDependencies["@deepseek-ai/dsh-subprocess"].replace(/^\^/, "")')
+          npm install --global "@deepseek-ai/dsh@${DSH}"
+          dsh plugin --profile web link "$PWD"
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results/
+
   # Early warning for the next DSH release candidate. Allowed to fail; a red run
   # means the Host contract moved and a compatibility release is due.
   check-dsh-next:

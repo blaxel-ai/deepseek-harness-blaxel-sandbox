@@ -62,7 +62,7 @@ async function git(cwd: string, args: string[]): Promise<string> {
     })
     return stdout
   } catch (error) {
-    throw new Error('Opening a sandbox requires a directory inside a Git worktree', { cause: error })
+    throw new Error('The workspace must be a directory inside a Git worktree', { cause: error })
   }
 }
 
@@ -79,14 +79,14 @@ async function gitFact(cwd: string, args: string[]): Promise<string | undefined>
 
 export async function inspectGitWorkspace(inputCwd: string): Promise<GitWorkspace> {
   if (inputCwd.length === 0 || inputCwd.includes('\0') || !isAbsolute(inputCwd)) {
-    throw new Error('Opening a sandbox requires an absolute workspace directory')
+    throw new Error('The workspace directory must be an absolute path')
   }
   const cwd = await realpath(resolve(inputCwd)).catch(() => {
     throw new Error('The current workspace directory no longer exists')
   })
-  if (!(await lstat(cwd)).isDirectory()) throw new Error('Opening a sandbox requires a workspace directory')
+  if (!(await lstat(cwd)).isDirectory()) throw new Error('The workspace path must be a directory')
   if ((await git(cwd, ['rev-parse', '--is-inside-work-tree'])).trim() !== 'true') {
-    throw new Error('Opening a sandbox requires a directory inside a Git worktree')
+    throw new Error('The workspace must be a directory inside a Git worktree')
   }
   const repoRoot = await realpath((await git(cwd, ['rev-parse', '--show-toplevel'])).trim())
   if (!inside(repoRoot, cwd)) throw new Error('The current directory is outside the resolved Git worktree')

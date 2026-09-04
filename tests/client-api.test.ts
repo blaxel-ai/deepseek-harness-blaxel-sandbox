@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getModelReadiness, getStatus, inspectBlaxelChanges, moveBlaxelChangesLocal, moveSession, openWorkspace, saveModelCredential } from '../src/client/api.js'
+import { SandboxMissingError, getModelReadiness, getStatus, inspectBlaxelChanges, moveBlaxelChangesLocal, moveSession, openWorkspace, reconnectBlaxelSandbox, saveModelCredential } from '../src/client/api.js'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -90,5 +90,20 @@ describe('Blaxel browser API', () => {
       error: 'Git worktree required',
     }), { status: 422 })))
     await expect(getStatus()).rejects.toThrow('Git worktree required')
+  })
+})
+
+describe('reconnect consent transport', () => {
+  it('turns the sandbox-missing refusal into a typed error and forwards consent', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: 'sandbox-missing' }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, outcome: 'recreated' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(reconnectBlaxelSandbox('session-1')).rejects.toBeInstanceOf(SandboxMissingError)
+    await expect(reconnectBlaxelSandbox('session-1', { recreate: true })).resolves.toBe('recreated')
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/blaxel/api/reconnect', expect.objectContaining({
+      body: JSON.stringify({ sessionId: 'session-1', recreate: true }),
+    }))
   })
 })

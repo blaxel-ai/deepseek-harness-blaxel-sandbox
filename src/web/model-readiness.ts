@@ -1,5 +1,5 @@
 import type { ModelReadiness, ReadyModel } from '../shared/model-readiness.js'
-import { modelReadinessMessage } from '../shared/model-readiness.js'
+import { modelReadinessMessage, providerDisplayName } from '../shared/model-readiness.js'
 import type { BlaxelWebContext, ModelSelection } from './context.js'
 
 function atPath(value: unknown, path: readonly string[]): unknown {
@@ -34,7 +34,7 @@ export async function inspectModelReadiness(ctx: BlaxelWebContext, sessionId: st
     const { provider, model } = await currentSelection(ctx, sessionId)
     const routable = ctx.llm.listProviders().some(candidate => candidate.id === provider)
     const entry = ctx.llm.listConfigurableProviders().find(candidate => candidate.provider === provider)
-    const providerName = entry?.displayName ?? provider
+    const providerName = providerDisplayName(provider, entry?.displayName)
     if (!routable) {
       return {
         kind: 'provider-unavailable',

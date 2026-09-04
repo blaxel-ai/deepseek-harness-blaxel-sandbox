@@ -22,7 +22,7 @@ import {
   type BrowserLoginState,
 } from './api.js'
 import { SandboxIcon } from './BlaxelSidebarMarker.js'
-import { sandboxConsoleUrl } from './BlaxelSandboxBanner.js'
+import { continueLocallyConfirmation, reconnectNotice, reconnectWithConsent, sandboxConsoleUrl, moveLocalConfirmation } from './BlaxelSandboxBanner.js'
 
 const card: CSSProperties = {
   background: 'var(--dsw-alias-bg-layer-1, #1f1f1f)',
@@ -95,7 +95,8 @@ function runningFor(ms: number): string {
 }
 
 function sandboxSummary(item: SandboxSessionStatus): string {
-  const state = item.state === 'ready' ? 'Ready' : item.state === 'failed' ? 'Needs attention' : 'Starting'
+  if (item.state === 'failed') return 'Unavailable · Session remains sandboxed · Local tools blocked'
+  const state = item.state === 'ready' ? 'Ready' : 'Starting'
   const elapsed = item.state === 'ready' ? `Running for ${runningFor(item.sandbox.uptimeMs)}` : `${runningFor(item.sandbox.uptimeMs)} elapsed`
   const processes = item.live.processes === 0
     ? ''
@@ -106,32 +107,43 @@ function sandboxSummary(item: SandboxSessionStatus): string {
 function SandboxCard(props: {
   sandbox: SandboxSessionStatus
   onMoveLocal: (sessionId: string) => Promise<void>
+  onReconnect: (sessionId: string) => Promise<void>
   onStop: (sessionId: string) => Promise<void>
 }): ReactNode {
   const [stopping, setStopping] = useState(false)
   const [returning, setReturning] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const item = props.sandbox
   const returnDisabled = returning || stopping || item.state !== 'ready' || item.live.processes > 0
   const consoleUrl = sandboxConsoleUrl(item.workspace, item.sandbox.name, item.environment)
   return <div style={{ borderTop: '1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.18))', padding: '13px 0 2px' }}>
     <div style={{ alignItems: 'center', display: 'flex', gap: 7, fontWeight: 600 }}><SandboxIcon /> {item.title ?? 'Blaxel sandbox'}</div>
     <div style={{ ...muted, marginTop: 4 }}>{sandboxSummary(item)}</div>
+    {item.state !== 'failed' ? null : <div style={{ background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f59e0b) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f59e0b) 42%, transparent)', borderRadius: 7, color: 'var(--dsw-alias-state-warn-label, #dd8629)', fontSize: 12, marginTop: 8, padding: '8px 9px' }}><strong>This session is not local.</strong> Reconnect to recover sandbox changes, or continue locally and permanently discard changes that exist only in the sandbox.</div>}
     {item.error === undefined ? null : <div style={{ color: 'var(--dsw-alias-state-warn-label, #dd8629)', fontSize: 12, marginTop: 4 }}>{item.error}</div>}
-    <details style={{ marginTop: 8 }}>
-      <summary style={{ ...muted, cursor: 'pointer', width: 'fit-content' }}>Technical details</summary>
-      <div style={{ ...muted, marginTop: 6 }}>Sandbox <code>{item.sandbox.name}</code><br />Blaxel workspace <code>{item.workspace}</code><br />Session ID <code>{item.sessionId}</code></div>
-    </details>
     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
-      <a href={consoleUrl} rel="noreferrer" style={{ ...button, alignItems: 'center', display: 'inline-flex', textDecoration: 'none' }} target="_blank">Open in Blaxel</a>
-      <button type="button" style={button} disabled={returnDisabled} title={item.live.processes > 0 ? 'Wait for active tool processes to finish' : undefined} onClick={() => {
-        setReturning(true)
-        void props.onMoveLocal(item.sessionId).finally(() => setReturning(false))
-      }}>{returning ? 'Returning…' : 'Return to local'}</button>
-      <button data-variant="danger" type="button" style={dangerButton} disabled={returning || stopping} onClick={() => {
-        if (!window.confirm('Discard this sandbox? Any changes not returned to local will be permanently lost.')) return
-        setStopping(true)
-        void props.onStop(item.sessionId).finally(() => setStopping(false))
-      }}>{stopping ? 'Discarding…' : 'Discard'}</button>
+      {item.state === 'failed' ? <>
+        <button type="button" style={button} disabled={reconnecting || stopping} onClick={() => {
+          setReconnecting(true)
+          void props.onReconnect(item.sessionId).finally(() => setReconnecting(false))
+        }}>{reconnecting ? 'Reconnecting…' : 'Reconnect to sandbox'}</button>
+        <button data-variant="danger" type="button" style={dangerButton} disabled={reconnecting || stopping} title="Drop the unavailable sandbox and continue this session locally" onClick={() => {
+          if (!window.confirm(continueLocallyConfirmation())) return
+          setStopping(true)
+          void props.onStop(item.sessionId).finally(() => setStopping(false))
+        }}>{stopping ? 'Dropping…' : 'Continue locally'}</button>
+      </> : <>
+        <a href={consoleUrl} rel="noreferrer" style={{ ...button, alignItems: 'center', display: 'inline-flex', textDecoration: 'none' }} target="_blank">Open in Blaxel</a>
+        <button type="button" style={button} disabled={returnDisabled} title={item.live.processes > 0 ? 'Wait for active tool processes to finish' : undefined} onClick={() => {
+          setReturning(true)
+          void props.onMoveLocal(item.sessionId).finally(() => setReturning(false))
+        }}>{returning ? 'Moving…' : 'Move back to local'}</button>
+        <button data-variant="danger" type="button" style={dangerButton} disabled={returning || stopping} onClick={() => {
+          if (!window.confirm('Discard this sandbox? Any changes not moved back to local will be permanently lost.')) return
+          setStopping(true)
+          void props.onStop(item.sessionId).finally(() => setStopping(false))
+        }}>{stopping ? 'Discarding…' : 'Discard sandbox'}</button>
+      </>}
     </div>
   </div>
 }
@@ -224,22 +236,34 @@ export function BlaxelSettings(): ReactNode {
     await run('stop', 'Sandbox discarded.', async () => await closeBlaxel(sessionId))
   }
 
+  const reconnect = async (sessionId: string): Promise<void> => {
+    setBusy('reconnect')
+    setError(undefined)
+    setNotice(undefined)
+    try {
+      const outcome = await reconnectWithConsent(sessionId)
+      if (outcome === 'cancelled') return
+      setNotice(reconnectNotice(outcome))
+      await refresh()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
   const moveLocal = async (sessionId: string): Promise<void> => {
     setBusy('move-local')
     setError(undefined)
     setNotice(undefined)
     try {
       const divergence = await inspectBlaxelChanges(sessionId)
-      const label = divergence.changed === 1 ? '1 changed file' : `${String(divergence.changed)} changed files`
-      const message = divergence.changed === 0
-        ? 'Return this session to local? The sandbox will stop and the session will continue in its original worktree.'
-        : `Return this session to local? ${label} will be applied to the original worktree, then the sandbox will stop. If local files conflict, nothing will change.`
-      if (!window.confirm(message)) return
+      if (!window.confirm(moveLocalConfirmation(divergence.changed))) return
       const result = await moveBlaxelChangesLocal(sessionId)
       const applied = result.divergence.changed === 0
         ? 'No sandbox changes needed to be applied.'
         : `${String(result.divergence.changed)} ${result.divergence.changed === 1 ? 'change was' : 'changes were'} applied locally.`
-      setNotice(`Returned to local. ${applied}`)
+      setNotice(`Moved back to local. ${applied}`)
       await refresh()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -415,7 +439,7 @@ export function BlaxelSettings(): ReactNode {
       <SectionTitle title={`Running sandboxes${running === 0 ? '' : ` (${String(running)})`}`} detail="Manage sessions currently running on Blaxel." />
       {status === undefined && error === undefined ? <div style={muted}>Checking sandboxes…</div> : null}
       {status?.sandboxes.length === 0 ? <div style={muted}>No sessions are running on Blaxel.</div> : null}
-      {status?.sandboxes.map(sandbox => <SandboxCard key={sandbox.sessionId} sandbox={sandbox} onMoveLocal={moveLocal} onStop={stop} />)}
+      {status?.sandboxes.map(sandbox => <SandboxCard key={sandbox.sessionId} sandbox={sandbox} onMoveLocal={moveLocal} onReconnect={reconnect} onStop={stop} />)}
     </section>
 
     {notice === undefined ? null : <p role="status" style={{ color: 'var(--dsw-alias-state-success-primary, #22c55e)', fontSize: 13 }}>{notice}</p>}

@@ -59,6 +59,8 @@ dsh web
 
 Sign in from **Settings > Blaxel**, or authenticate on the host with `bl login YOUR-WORKSPACE`.
 
+`pnpm check` runs lint, types, unit tests, build, and publint. `pnpm e2e` additionally boots `dsh web` with the linked plugin and runs the Playwright browser smoke suite (`pnpm exec playwright install chromium` once).
+
 ## Workspace launch
 
 The launch action is available when the session directory is inside a Git worktree. It:
