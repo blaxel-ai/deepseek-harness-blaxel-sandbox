@@ -12,5 +12,5 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: [['list']],
-  use: { headless: true, viewport: { width: 1280, height: 860 } },
+  use: { headless: true, viewport: { width: 1280, height: 860 }, screenshot: 'only-on-failure', trace: 'retain-on-failure' },
 })

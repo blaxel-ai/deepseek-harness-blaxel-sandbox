@@ -19,7 +19,20 @@ test.beforeEach(async ({ page }) => {
   })
   await page.goto(host.url)
   await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
+  await dismissFirstRunDialogs(page)
 })
+
+/** A fresh profile greets with the testing notice and an API-key prompt; both block clicks. */
+async function dismissFirstRunDialogs(page: Page): Promise<void> {
+  for (let round = 0; round < 3; round += 1) {
+    const dialog = page.getByRole('dialog')
+    if (await dialog.count() === 0) return
+    const dismiss = dialog.getByRole('button', { name: /^(Continue|Configure later)$/ })
+    if (await dismiss.count() === 0) return
+    await dismiss.first().click()
+    await expect(dialog).toHaveCount(0, { timeout: 5_000 }).catch(() => undefined)
+  }
+}
 
 /** Selects an existing session row or starts a blank one, so session-scoped slots mount. */
 async function openAnySession(page: Page): Promise<void> {
