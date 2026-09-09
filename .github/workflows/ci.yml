@@ -19,7 +19,7 @@ jobs:
         node: [22, 24]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
@@ -38,7 +38,7 @@ jobs:
       - name: Isolate the test profile and runtime
         run: |
           printf 'DSH_HOME=%s/dsh-e2e\nDSH_BLAXEL_RUNTIME_CACHE=%s/dsh-runtime\nDSH_TEST_LAUNCHER=%s/dsh-e2e/profiles/web/node_modules/@blaxel/dsh-sandbox/dist/cli.js\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
@@ -103,7 +103,7 @@ jobs:
       BL_API_KEY: ${{ secrets.BL_API_KEY }}
       BL_WORKSPACE: ${{ secrets.BL_WORKSPACE }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
