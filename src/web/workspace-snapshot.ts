@@ -62,7 +62,7 @@ async function git(cwd: string, args: string[]): Promise<string> {
     })
     return stdout
   } catch (error) {
-    throw new Error('Opening a sandbox requires a directory inside a Git worktree', { cause: error })
+    throw new Error('The workspace must be a directory inside a Git worktree', { cause: error })
   }
 }
 
@@ -79,14 +79,14 @@ async function gitFact(cwd: string, args: string[]): Promise<string | undefined>
 
 export async function inspectGitWorkspace(inputCwd: string): Promise<GitWorkspace> {
   if (inputCwd.length === 0 || inputCwd.includes('\0') || !isAbsolute(inputCwd)) {
-    throw new Error('Opening a sandbox requires an absolute workspace directory')
+    throw new Error('The workspace directory must be an absolute path')
   }
   const cwd = await realpath(resolve(inputCwd)).catch(() => {
     throw new Error('The current workspace directory no longer exists')
   })
-  if (!(await lstat(cwd)).isDirectory()) throw new Error('Opening a sandbox requires a workspace directory')
+  if (!(await lstat(cwd)).isDirectory()) throw new Error('The workspace path must be a directory')
   if ((await git(cwd, ['rev-parse', '--is-inside-work-tree'])).trim() !== 'true') {
-    throw new Error('Opening a sandbox requires a directory inside a Git worktree')
+    throw new Error('The workspace must be a directory inside a Git worktree')
   }
   const repoRoot = await realpath((await git(cwd, ['rev-parse', '--show-toplevel'])).trim())
   if (!inside(repoRoot, cwd)) throw new Error('The current directory is outside the resolved Git worktree')
@@ -117,6 +117,13 @@ async function safeEntry(root: string, path: string): Promise<{ include: boolean
     return { include: false, bytes: 0 }
   }
   if (!info.isFile() && !info.isSymbolicLink() && !info.isDirectory()) return { include: false, bytes: 0 }
+  if (info.isDirectory()) {
+    const nested = await lstat(join(full, '.git')).then(() => true, () => false)
+    const staged = await git(root, ['ls-files', '--stage', '--', path])
+    if (nested || staged.startsWith('160000 ')) {
+      throw new Error(`Cannot snapshot submodule or nested repository "${path}"; open that repository as its own workspace`)
+    }
+  }
   const containmentTarget = info.isSymbolicLink() ? await realpath(dirname(full)) : await realpath(full)
   if (!inside(root, containmentTarget)) return { include: false, bytes: 0 }
   return { include: true, bytes: info.isFile() ? info.size : 0 }

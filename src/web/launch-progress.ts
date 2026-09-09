@@ -11,6 +11,7 @@ export type LaunchStep =
   | 'archiving'
   | 'session'
   | 'starting'
+  | 'host'
   | 'ready'
 
 export interface LaunchFiles {

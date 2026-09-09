@@ -25,7 +25,7 @@ export class RoutingFileSystem extends FileSystem {
     const sessionId = sandboxRoutingSession(this.ctx.agents, this.ctx.blaxelSessions, this.ctx.agents.currentInitiator())
     const remote = this.ctx.blaxelSessions.get(sessionId)
     if (remote !== undefined) return remote.fs
-    if (this.ctx.blaxelSessions.isSandboxSession(sessionId)) throw new Error('This sandbox session is stopped; start a new sandbox session to continue')
+    if (this.ctx.blaxelSessions.isSandboxSession(sessionId)) throw new Error('This session is still bound to an unavailable Blaxel sandbox. Local tools are blocked; reconnect, or continue locally to drop the sandbox.')
     return this.local
   }
 

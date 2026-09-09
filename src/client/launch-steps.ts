@@ -9,6 +9,7 @@ export const LAUNCH_STEPS: readonly LaunchStep[] = [
   'archiving',
   'session',
   'starting',
+  'host',
   'ready',
 ]
 
@@ -19,7 +20,7 @@ export interface LaunchLine {
   state: 'done' | 'active' | 'waiting'
 }
 
-function label(step: LaunchStep, kind: LaunchProgress['kind']): string {
+function label(step: LaunchStep): string {
   switch (step) {
     case 'inspecting': return 'Checking the Git worktree'
     case 'listing': return 'Finding workspace files'
@@ -27,7 +28,8 @@ function label(step: LaunchStep, kind: LaunchProgress['kind']): string {
     case 'archiving': return 'Preparing the workspace snapshot'
     case 'session': return 'Preparing the session handoff'
     case 'starting': return 'Starting the Blaxel sandbox'
-    case 'ready': return kind === 'move' ? 'Ready on Blaxel' : 'Ready on Blaxel'
+    case 'host': return 'Starting the cloud agent and restoring your conversation'
+    case 'ready': return 'Ready on Blaxel'
   }
 }
 
@@ -53,7 +55,7 @@ export function launchLines(progress: LaunchProgress): LaunchLine[] {
   const current = steps.indexOf(progress.step)
   return steps.map((step, index) => ({
     step,
-    label: label(step, progress.kind),
+    label: label(step),
     ...(index === current ? { detail: detail(step, progress) } : {}),
     state: index < current ? 'done' : index === current ? 'active' : 'waiting',
   }))
@@ -61,5 +63,5 @@ export function launchLines(progress: LaunchProgress): LaunchLine[] {
 
 /** True while the host is doing launch work this window should be watching. */
 export function launching(status: Status | undefined): boolean {
-  return status?.progress !== undefined && status.progress.step !== 'ready'
+  return status?.progress !== undefined && status.progress.step !== 'ready' && status.progress.error === undefined
 }

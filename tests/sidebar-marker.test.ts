@@ -4,7 +4,8 @@ import { sandboxRowTitles, SIDEBAR_MARKER_CSS } from '../src/client/BlaxelSideba
 
 describe('sandbox sidebar marker', () => {
   it('renders through the native leading icon slot', () => {
-    expect(SIDEBAR_MARKER_CSS).toContain('[data-blaxel-sandbox-session="true"] > span:first-child')
+    expect(SIDEBAR_MARKER_CSS).toContain('[data-blaxel-sandbox-session] > span:first-child')
+    expect(SIDEBAR_MARKER_CSS).toContain('[data-blaxel-sandbox-session="failed"] > span:first-child')
     expect(SIDEBAR_MARKER_CSS).not.toContain(']::before')
   })
 
@@ -18,6 +19,18 @@ describe('sandbox sidebar marker', () => {
       },
     }
     expect(sandboxRowTitles(state, ['sandbox'])).toEqual(['Inspect remote execution'])
+  })
+
+  it('finds an untitled binding through the row display title DSH derives', () => {
+    const state: ClientSessionListState = {
+      ids: ['sandbox', 'other'],
+      current: 'other',
+      byId: {
+        sandbox: { blank: false, displayTitle: 'calibrator' },
+        other: { blank: false, displayTitle: 'We need a small UX' },
+      },
+    }
+    expect(sandboxRowTitles(state, ['sandbox'])).toEqual(['calibrator'])
   })
 
   it('marks only the selected duplicate title', () => {

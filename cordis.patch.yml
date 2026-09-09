@@ -1,5 +1,5 @@
-# Local and Blaxel execution share one DSH host. These routers preserve the
-# native session model and select a backend from the active session id.
+# Local execution and existing tool-only bindings use native provider routers.
+# New Web handoffs move the complete agent host into a private cloud session.
 - id: subprocess
   name: '@deepseek-ai/dsh-subprocess-local'
   disabled: true
@@ -50,6 +50,19 @@
       name: '@blaxel/dsh-sandbox'
 
     # The host bridge creates ordinary DSH sessions and binds their execution
-    # backends to Blaxel sandboxes. It never starts another Web process.
+    # backends and complete cloud hosts to Blaxel sandboxes.
     - id: blaxel-web
       name: '@blaxel/dsh-sandbox/web'
+
+# The native Gateway retains authentication and validation while fencing migrated sessions.
+- id: typert-gateway
+  disabled: true
+
+- insert:
+    - id: blaxel-native-gateway-client
+      name: './dist/native-client/gateway/index.js'
+    - id: blaxel-cloud-gateway
+      name: '@blaxel/dsh-sandbox/cloud-gateway'
+- insert:
+    - id: blaxel-cloud
+      name: '@blaxel/dsh-sandbox/cloud'

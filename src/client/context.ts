@@ -1,9 +1,28 @@
+import type { DraftImage } from '../cloud/draft.js'
 import type { Context } from '@deepseek-ai/cordis'
 
 export interface ClientSessionListState {
   ids: string[]
   byId: Record<string, { cwd?: string; blank: boolean; displayTitle?: string } | undefined>
   current?: string
+}
+
+/** The part of DSH's per-session snapshot the Blaxel surfaces read. */
+export interface ClientSessionSnapshot {
+  sessionId: string
+  running: boolean
+}
+
+/**
+ * Standard props DSH hands every entry in a session-scoped slot (DSH 0.1.2):
+ * the session identity plus selector hooks, never a plain session object.
+ */
+export interface SessionSlotProps {
+  sessionId: string
+  useInput: <T>(selector: (snapshot: { draft: string; imageIds: readonly string[]; phase: string }) => T) => T
+  inputActions: { setDraft(text: string): void; addImages(ids: readonly string[]): boolean; removeImage(id: string): void }
+  useSession: <T>(selector: (snapshot: ClientSessionSnapshot) => T) => T
+  useSessions: <T>(selector: (state: ClientSessionListState) => T) => T
 }
 
 export interface ClientSessions {
@@ -15,6 +34,9 @@ export interface ClientSessions {
 }
 
 export interface ClientConversation {
+  serializeDraftImages(ids: readonly string[]): Promise<readonly DraftImage[]>
+  createDraftImages(files: readonly File[]): readonly { id: string }[]
+  releaseDraftImage(id: string): void
   blocks: {
     set(sessionId: string, block: { reason: string } | undefined): void
     storeFor(sessionId: string): { getSnapshot(): { reason: string } | undefined }

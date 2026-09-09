@@ -34,12 +34,19 @@ export function baselineGit(paths: Pick<RuntimePaths, 'runtimeRoot' | 'workspace
   return `git -c safe.directory='*' --git-dir=${shellQuote(gitDir)} --work-tree=${shellQuote(paths.workspaceRoot)}`
 }
 
+/**
+ * Pairs the private repository with the workspace. The `.git` pointer is only
+ * written while nothing else owns that path: an agent that ran `git init` in
+ * the workspace keeps its repository, and the baseline still works through its
+ * explicit `--git-dir`.
+ */
 function attachWorkspace(paths: Pick<RuntimePaths, 'runtimeRoot' | 'workspaceRoot'>): string[] {
   const gitDir = `${paths.runtimeRoot}/baseline.git`
+  const pointer = shellQuote(`${paths.workspaceRoot}/.git`)
   return [
     `git --git-dir=${shellQuote(gitDir)} config core.bare false`,
     `git --git-dir=${shellQuote(gitDir)} config core.worktree ${shellQuote(paths.workspaceRoot)}`,
-    `printf 'gitdir: %s\\n' ${shellQuote(gitDir)} > ${shellQuote(`${paths.workspaceRoot}/.git`)}`,
+    `{ test -d ${pointer} || printf 'gitdir: %s\\n' ${shellQuote(gitDir)} > ${pointer}; }`,
   ]
 }
 

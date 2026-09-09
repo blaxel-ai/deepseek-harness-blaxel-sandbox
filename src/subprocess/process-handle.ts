@@ -47,8 +47,16 @@ export class BlaxelProcessHandle implements SubprocessHandle {
       final: callback => { void this.closeStdin().then(() => callback(), callback) },
     }) : undefined
     this.ready = this.readyState.promise
+    // Consumers that await `ready` still see the failure; nobody else must, or
+    // one lost sandbox becomes an unhandled rejection that takes DSH down.
+    void this.ready.catch(() => {})
     this.id = `dsh-${randomUUID()}`
-    this.done = this.start().catch(error => { this.readyState.reject(error); throw error })
+    this.done = this.start().catch(async (error: unknown) => {
+      // A vanished sandbox reads as one sentence, not the platform's retry manifesto.
+      const failure = await this.runtime.markUnavailable(error) ? new Error(this.runtime.unavailableReason ?? String(error)) : error
+      this.readyState.reject(failure)
+      throw failure
+    })
     void this.done.catch(() => {})
   }
 
@@ -60,11 +68,10 @@ export class BlaxelProcessHandle implements SubprocessHandle {
     void this.ready.then(async () => {
       const sandbox = await this.runtime.getSandbox().catch(() => undefined)
       if (sandbox === undefined) return
-      await sandbox.process.kill(this.id).catch(() => undefined)
-      this.stream?.close()
-      this.stdout?.destroy()
-      this.stderr?.destroy()
-    })
+      // SIGKILL skips the supervisor's trap and leaves its setsid child alive.
+      // The trap owns TERM -> grace -> KILL for the isolated process group.
+      await sandbox.process.stop(this.id).catch(() => undefined)
+    }, () => undefined)
   }
 
   async waitForExit(signal?: AbortSignal): Promise<boolean> {
@@ -81,7 +88,7 @@ export class BlaxelProcessHandle implements SubprocessHandle {
     if (fifo !== undefined) await sandbox.process.exec({ name: `${this.id}-fifo`, command: `mkdir -p ${shellQuote(posix.dirname(fifo))} && rm -f ${shellQuote(fifo)} && mkfifo ${shellQuote(fifo)}`, workingDir: this.spec.cwd, waitForCompletion: true })
     const response = await sandbox.process.exec({
       name: this.id,
-      command: argvCommand(this.spec.argv, env, this.spec.cwd, fifo),
+      command: argvCommand(this.spec.argv, env, this.spec.cwd, this.spec.graceMs, fifo),
       workingDir: this.spec.cwd,
       waitForCompletion: false,
       timeout: 0,
@@ -94,7 +101,7 @@ export class BlaxelProcessHandle implements SubprocessHandle {
       onStderr: chunk => this.onOutput('stderr', chunk),
       onError: error => { this.stdout?.destroy(error); this.stderr?.destroy(error) },
     })
-    if (typeof this.spec.stdio.stdin === 'object') void this.writeStdin(this.spec.stdio.stdin.data).then(() => this.closeStdin(), () => undefined)
+    if (typeof this.spec.stdio.stdin === 'object') void this.writeStdin(this.spec.stdio.stdin.data).then(() => this.closeStdin()).catch(() => undefined)
     try {
       await this.stream.wait()
       const result = await sandbox.process.wait(id, { maxWait: Math.max(1, this.spec.graceMs), interval: 50 }).catch(() => sandbox.process.get(id))

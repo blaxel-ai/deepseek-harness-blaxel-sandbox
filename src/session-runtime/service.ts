@@ -6,12 +6,12 @@ import '../shared/integration-user-agent.js'
 import { BlaxelCapabilitiesManager, type BlaxelCapabilitiesStatus } from '../blaxel-capabilities.js'
 import { BlaxelSettingsManager, type BlaxelSettingsStatus, type BrowserLoginState, type SandboxDefaults } from '../blaxel-settings.js'
 import { BlaxelFileSystem } from '../filesystem/service.js'
-import { BlaxelRuntime } from '../runtime/service.js'
+import { BlaxelRuntime, SANDBOX_GONE, SandboxGoneError, sandboxIsGone } from '../runtime/service.js'
 import { BlaxelSubprocessRuntime } from '../subprocess/service.js'
 import { LaunchTracker, type LaunchProgress } from '../web/launch-progress.js'
 import { divergenceReader, type DivergenceResult, type DivergenceSummary } from '../web/divergence.js'
 import { applySandboxPatch } from '../web/local-sync.js'
-import { SandboxBindingStore, type PersistedSandboxBinding } from './binding-store.js'
+import { SandboxBindingStore, type PersistedSandboxBinding, type CloudBinding } from './binding-store.js'
 import {
   createGitWorkspaceSnapshot,
   inspectGitWorkspace,
@@ -57,6 +57,21 @@ export interface SandboxSessionStatus {
   provenance: SnapshotMeta
   live: { processes: number }
   error?: string
+  cloud?: { phase: CloudBinding['phase'] }
+}
+
+export function sandboxRecoveryError(error: unknown, sandboxName: string): { missing: boolean; message: string } {
+  const candidate = typeof error === 'object' && error !== null ? error as Record<string, unknown> : undefined
+  const detail = error instanceof Error
+    ? error.message
+    : typeof candidate?.error === 'string'
+      ? candidate.error
+      : typeof candidate?.message === 'string' ? candidate.message : String(error)
+  const missing = error instanceof SandboxGoneError
+  return {
+    missing,
+    message: missing ? SANDBOX_GONE : detail.replaceAll(sandboxName, 'the sandbox'),
+  }
 }
 
 interface PreparedSandbox {
@@ -78,6 +93,7 @@ declare module '@deepseek-ai/cordis' {
 export class BlaxelSessionRuntime extends Service {
   private readonly sessions = new Map<string, SandboxSession>()
   private readonly recoveryErrors = new Map<string, string>()
+  private readonly missingSandboxes = new Set<string>()
   private readonly bindings = new SandboxBindingStore()
   private readonly launch = new LaunchTracker()
   private readonly settings = new BlaxelSettingsManager()
@@ -172,7 +188,7 @@ export class BlaxelSessionRuntime extends Service {
     return await this.settings.testConnection()
   }
 
-  async prepare(inputCwd: string, kind: 'open' | 'move'): Promise<PreparedSandbox> {
+  async prepare(inputCwd: string, kind: 'open' | 'move', cloud = false): Promise<PreparedSandbox> {
     await this.recovery
     if (this.opening) throw new Error('Another sandbox session is already starting')
     this.opening = true
@@ -194,6 +210,7 @@ export class BlaxelSessionRuntime extends Service {
         archivePath: snapshot.archivePath,
         image: defaults.image,
         memory: defaults.memory,
+        ...(cloud ? { ports: [{ target: 5173, protocol: 'HTTP' }], ttl: defaults.ttl ?? '24h' } : {}),
         ...(defaults.region === undefined ? {} : { region: defaults.region }),
         ...(defaults.ttl === undefined ? {} : { ttl: defaults.ttl }),
       }))
@@ -224,7 +241,7 @@ export class BlaxelSessionRuntime extends Service {
     }
   }
 
-  async bind(prepared: PreparedSandbox, sessionId: string, title?: string): Promise<SandboxSession> {
+  async bind(prepared: PreparedSandbox, sessionId: string, title?: string, cloud?: CloudBinding): Promise<SandboxSession> {
     if (this.bindings.get(sessionId) !== undefined) throw new Error('This session already has a sandbox runtime')
     const provenance: SnapshotMeta = {
       repoRoot: prepared.snapshot.repoRoot,
@@ -254,6 +271,7 @@ export class BlaxelSessionRuntime extends Service {
       release,
     }
     const binding: PersistedSandboxBinding = {
+      ...(cloud === undefined ? {} : { cloud }),
       sessionId,
       ...(title === undefined ? {} : { title }),
       sandboxName: prepared.runtime.name,
@@ -269,6 +287,7 @@ export class BlaxelSessionRuntime extends Service {
       this.bindings.save(binding)
       prepared.runtime.preserveOnDispose()
       this.recoveryErrors.delete(sessionId)
+      this.missingSandboxes.delete(sessionId)
       this.sessions.set(sessionId, session)
     } catch (error) {
       await prepared.runtime.deleteSandbox().catch(() => undefined)
@@ -286,6 +305,51 @@ export class BlaxelSessionRuntime extends Service {
     await removeGitWorkspaceSnapshot(prepared.snapshot)
   }
 
+  /** Selects the saved workspace and reports when a replacement must be created. */
+  async reconnect(sessionId: string): Promise<'ready' | 'missing'> {
+    await this.recovery
+    const live = this.sessions.get(sessionId)
+    if (live !== undefined) {
+      if (live.runtime.phase !== 'failed') return 'ready'
+      // The sandbox vanished while connected: drop the dead backend and recover from the binding.
+      this.sessions.delete(sessionId)
+      await live.release().catch(() => undefined)
+    }
+    const binding = this.bindings.get(sessionId)
+    if (binding === undefined) throw new Error('This session is local; it has no Blaxel sandbox to reconnect')
+    const connection = (await this.settings.status()).connection
+    if (connection.workspace !== binding.workspace || connection.environment !== binding.environment) {
+      this.assertCompatibleWorkspace(binding.workspace)
+      await this.settings.switchWorkspace(binding.workspace)
+    }
+    await this.recoverPersistedBindings()
+    if (this.sessions.has(sessionId)) return 'ready'
+    if (this.missingSandboxes.has(sessionId)) return 'missing'
+    throw new Error(this.recoveryErrors.get(sessionId) ?? 'The Blaxel sandbox is still unavailable')
+  }
+
+  /** Replaces a confirmed-missing sandbox from the original local worktree. */
+  async recreateMissing(sessionId: string): Promise<void> {
+    await this.recovery
+    if (!this.missingSandboxes.has(sessionId)) throw new Error('Reconnect the existing sandbox instead')
+    const previous = this.bindings.get(sessionId)
+    if (previous === undefined) throw new Error('This session is local; it has no Blaxel sandbox to reconnect')
+    const prepared = await this.prepare(previous.provenance.cwd, 'move')
+    if (this.sessions.has(sessionId) || !this.missingSandboxes.has(sessionId)) {
+      await this.discard(prepared)
+      throw new Error('The existing sandbox reconnected while its replacement was starting')
+    }
+    this.bindings.remove(sessionId)
+    try {
+      await this.bind(prepared, sessionId, previous.title)
+    } catch (error) {
+      this.bindings.remove(sessionId)
+      this.bindings.save(previous)
+      this.missingSandboxes.add(sessionId)
+      throw error
+    }
+  }
+
   async close(sessionId: string): Promise<void> {
     await this.recovery
     const session = this.sessions.get(sessionId)
@@ -295,6 +359,7 @@ export class BlaxelSessionRuntime extends Service {
       this.bindings.remove(sessionId)
       this.sessions.delete(sessionId)
       this.recoveryErrors.delete(sessionId)
+      this.missingSandboxes.delete(sessionId)
       await session.release()
       return
     }
@@ -308,10 +373,11 @@ export class BlaxelSessionRuntime extends Service {
     try {
       await SandboxInstance.delete(binding.sandboxName)
     } catch (error) {
-      if (!/not found|404/i.test(String(error))) throw error
+      if (!sandboxIsGone(error)) throw new Error(sandboxRecoveryError(error, binding.sandboxName).message)
     }
     this.bindings.remove(sessionId)
     this.recoveryErrors.delete(sessionId)
+    this.missingSandboxes.delete(sessionId)
   }
 
   async divergence(sessionId: string): Promise<DivergenceResult> {
@@ -321,12 +387,35 @@ export class BlaxelSessionRuntime extends Service {
     return await divergenceReader(session.runtime).read()
   }
 
+  cloudProgress(step: 'host' | 'ready', error?: string): void {
+    this.launch.step(step)
+    if (error !== undefined) this.launch.fail(error)
+  }
+
+  binding(sessionId: string): PersistedSandboxBinding | undefined {
+    return this.bindings.get(sessionId)
+  }
+
+  cloudOwner(sessionId: string): string | undefined {
+    for (const binding of this.bindings.list()) {
+      if (binding.cloud !== undefined && (binding.sessionId === sessionId || binding.cloud.related?.some(item => item.id === sessionId))) return binding.sessionId
+    }
+    return undefined
+  }
+
+  updateCloud(sessionId: string, cloud: CloudBinding): void {
+    const binding = this.bindings.get(sessionId)
+    if (binding === undefined) throw new Error('The cloud session binding is missing')
+    this.bindings.save({ ...binding, cloud })
+  }
+
   /** Applies remote edits locally, then removes the remote binding and sandbox. */
   async moveChangesLocal(sessionId: string): Promise<{ repoRoot: string; divergence: DivergenceSummary }> {
     await this.recovery
     const session = this.sessions.get(sessionId)
     if (session === undefined) throw new Error('Reconnect this sandbox session before moving its changes locally')
     if (session.subprocess.ownedProcesses() > 0) throw new Error('Wait for sandbox tool processes to finish before moving changes locally')
+    await this.settings.refreshAuthentication(session.workspace)
     const reader = divergenceReader(session.runtime)
     const result = await reader.read()
     if (!result.available) throw new Error(result.reason)
@@ -344,6 +433,7 @@ export class BlaxelSessionRuntime extends Service {
     await this.recovery
     const live = await Promise.all(this.list().map(async session => {
       const runtime = session.runtime
+      await runtime.probe()
       const facts = runtime.phase === 'ready' ? await runtime.sandboxFacts() : { name: runtime.name }
       return {
         sessionId: session.sessionId,
@@ -361,6 +451,8 @@ export class BlaxelSessionRuntime extends Service {
         },
         provenance: session.provenance,
         live: { processes: session.subprocess.ownedProcesses() },
+        ...(this.bindings.get(session.sessionId)?.cloud === undefined ? {} : { cloud: { phase: this.bindings.get(session.sessionId)!.cloud!.phase } }),
+        ...(runtime.phase === 'failed' ? { error: runtime.unavailableReason ?? 'The sandbox is unavailable' } : {}),
       }
     }))
     const liveIds = new Set(live.map(item => item.sessionId))
@@ -380,6 +472,7 @@ export class BlaxelSessionRuntime extends Service {
       },
       provenance: binding.provenance,
       live: { processes: 0 },
+      ...(binding.cloud === undefined ? {} : { cloud: { phase: binding.cloud.phase } }),
       error: this.recoveryErrors.get(binding.sessionId) ?? 'Sandbox reconnection is pending',
     }))
     const sandboxes = [...live, ...unavailable]
@@ -445,9 +538,13 @@ export class BlaxelSessionRuntime extends Service {
         }
         this.sessions.set(binding.sessionId, session)
         this.recoveryErrors.delete(binding.sessionId)
+        this.missingSandboxes.delete(binding.sessionId)
       } catch (error) {
         await Promise.all(fibers.reverse().map(fiber => fiber.dispose().catch(() => undefined)))
-        this.recoveryErrors.set(binding.sessionId, error instanceof Error ? error.message : String(error))
+        const failure = sandboxRecoveryError(error, binding.sandboxName)
+        if (failure.missing) this.missingSandboxes.add(binding.sessionId)
+        else this.missingSandboxes.delete(binding.sessionId)
+        this.recoveryErrors.set(binding.sessionId, failure.message)
       }
     }
   }

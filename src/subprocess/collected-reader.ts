@@ -14,7 +14,7 @@ export class CollectedReader implements SubprocessOutputReader {
   push(chunk: string | Buffer): void {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     this.total += bytes.length
-    this.tail = Buffer.concat([this.tail, bytes]).subarray(-this.mode.maxBytes)
+    this.tail = this.mode.maxBytes === 0 ? Buffer.alloc(0) : Buffer.from(Buffer.concat([this.tail, bytes]).subarray(-this.mode.maxBytes))
     if (this.mode.spill !== undefined && this.full.length <= this.mode.spill.maxBytes) {
       this.full = Buffer.concat([this.full, bytes])
       if (this.full.length > this.mode.spill.maxBytes) this.full = Buffer.alloc(0)

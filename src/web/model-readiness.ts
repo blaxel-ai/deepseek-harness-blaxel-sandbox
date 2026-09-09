@@ -1,6 +1,7 @@
 import type { ModelReadiness, ReadyModel } from '../shared/model-readiness.js'
-import { modelReadinessMessage } from '../shared/model-readiness.js'
+import { modelReadinessMessage, providerDisplayName } from '../shared/model-readiness.js'
 import type { BlaxelWebContext, ModelSelection } from './context.js'
+import { inspectPiAiAuth } from './pi-ai-auth.js'
 
 function atPath(value: unknown, path: readonly string[]): unknown {
   let current = value
@@ -34,7 +35,7 @@ export async function inspectModelReadiness(ctx: BlaxelWebContext, sessionId: st
     const { provider, model } = await currentSelection(ctx, sessionId)
     const routable = ctx.llm.listProviders().some(candidate => candidate.id === provider)
     const entry = ctx.llm.listConfigurableProviders().find(candidate => candidate.provider === provider)
-    const providerName = entry?.displayName ?? provider
+    const providerName = providerDisplayName(provider, entry?.displayName)
     if (!routable) {
       return {
         kind: 'provider-unavailable',
@@ -49,8 +50,17 @@ export async function inspectModelReadiness(ctx: BlaxelWebContext, sessionId: st
     }
     const settings = ctx.settingsController.describe()
     const namespace = settings.namespaces.find(candidate => candidate.ns === entry.settingsNs)
-    const ref = apiKeyEnv(atPath(namespace?.value, entry.settingsPath))
-    if (ref === undefined) return { kind: 'ready', provider, providerName, model }
+    let ref = apiKeyEnv(atPath(namespace?.value, entry.settingsPath))
+    if (ref === undefined) {
+      if (entry.settingsNs !== 'llm-pi-ai' || entry.declared === true) return { kind: 'ready', provider, providerName, model }
+      const auth = await inspectPiAiAuth(ctx, provider)
+      if (auth.configured) return { kind: 'ready', provider, providerName, model }
+      ref = auth.credentialRef
+      if (ref === undefined) return {
+        kind: 'provider-unavailable', provider, providerName, model,
+        message: `Configure ${providerName} authentication in Settings > Models, then retry.`,
+      }
+    }
     const described = await ctx.credentialsController.describe([ref])
     const credential = described[ref]
     if (credential?.configured === true) return { kind: 'ready', provider, providerName, model }
@@ -62,10 +72,10 @@ export async function inspectModelReadiness(ctx: BlaxelWebContext, sessionId: st
       credentialRef: ref,
       writable: credential?.writable === true,
     }
-  } catch (error) {
+  } catch {
     return {
       kind: 'verification-failed',
-      message: `Could not verify the selected model: ${error instanceof Error ? error.message : String(error)}`,
+      message: 'Could not verify the selected model. Check its configuration in Settings > Models, then retry.',
     }
   }
 }

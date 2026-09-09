@@ -25,9 +25,11 @@ async function read(): Promise<void> {
   timer = undefined
   try {
     const next = await getStatus().catch(() => undefined)
-    latest = next
-    for (const listener of listeners) listener(next)
-    if (listeners.size > 0) timer = setTimeout(() => { void read() }, interval(next))
+    if (next !== undefined) {
+      latest = next
+      for (const listener of listeners) listener(next)
+    }
+    if (listeners.size > 0) timer = setTimeout(() => { void read() }, interval(next ?? latest))
   } finally {
     inFlight = false
   }

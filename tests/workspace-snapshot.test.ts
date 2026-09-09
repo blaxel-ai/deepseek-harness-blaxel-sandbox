@@ -21,6 +21,58 @@ afterEach(async () => {
 })
 
 describe('Git workspace launch', () => {
+  it('snapshots an unborn repository and literal filenames containing whitespace and option prefixes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-blaxel-unborn-'))
+    cleanup.add(root)
+    await execFileAsync('git', ['init', '--quiet', root])
+    const names = ['--checkpoint-action=exec=echo', 'line\nbreak.txt', 'tab\tname.txt', '日本語 ü.txt']
+    for (const name of names) await writeFile(join(root, name), `literal ${name}`)
+    const snapshot = await createGitWorkspaceSnapshot(await inspectGitWorkspace(root))
+    cleanup.add(snapshot.tempDir)
+    expect(snapshot.commit).toBeUndefined()
+    expect(snapshot.fileCount).toBe(names.length)
+    const extracted = join(root, 'extracted')
+    await mkdir(extracted)
+    await execFileAsync('tar', ['-xzf', snapshot.archivePath, '-C', extracted])
+    for (const name of names) expect(await readFile(join(extracted, name), 'utf8')).toBe(`literal ${name}`)
+  })
+
+  it('snapshots a linked Git worktree without importing its private Git pointer', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-blaxel-linked-'))
+    cleanup.add(root)
+    await execFileAsync('git', ['init', '--quiet', root])
+    await writeFile(join(root, 'source.txt'), 'committed\n')
+    await execFileAsync('git', ['-C', root, 'add', 'source.txt'])
+    await execFileAsync('git', ['-C', root, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'baseline'])
+    const linked = join(root, 'linked')
+    await execFileAsync('git', ['-C', root, 'worktree', 'add', '--quiet', '--detach', linked])
+    await writeFile(join(linked, 'source.txt'), 'uncommitted\n')
+    const snapshot = await createGitWorkspaceSnapshot(await inspectGitWorkspace(linked))
+    cleanup.add(snapshot.tempDir)
+    expect(snapshot.branch).toBe('DETACHED')
+    const { stdout } = await execFileAsync('tar', ['-tzf', snapshot.archivePath])
+    expect(stdout).toContain('./source.txt')
+    expect(stdout).not.toContain('.git')
+  })
+
+  it('rejects a submodule instead of silently uploading an empty dependency directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-blaxel-submodule-'))
+    cleanup.add(root)
+    await execFileAsync('git', ['init', '--quiet', root])
+    await writeFile(join(root, 'source.txt'), 'root\n')
+    await execFileAsync('git', ['-C', root, 'add', 'source.txt'])
+    await execFileAsync('git', ['-C', root, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'baseline'])
+    const { stdout: commit } = await execFileAsync('git', ['-C', root, 'rev-parse', 'HEAD'])
+    await mkdir(join(root, 'dependency'))
+    await writeFile(join(root, 'dependency', 'important.ts'), 'export const dependency = true\n')
+    await execFileAsync('git', ['-C', root, 'update-index', '--add', '--cacheinfo', `160000,${commit.trim()},dependency`])
+    const attempt = createGitWorkspaceSnapshot(await inspectGitWorkspace(root)).then(snapshot => {
+      cleanup.add(snapshot.tempDir)
+      return snapshot
+    })
+    await expect(attempt).rejects.toThrow(/submodule|nested repository/i)
+  })
+
   it('snapshots tracked and unignored files while excluding credential files', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-blaxel-worktree-test-'))
     cleanup.add(root)

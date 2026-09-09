@@ -3,11 +3,24 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type { SnapshotMeta } from '../web/workspace-snapshot.js'
+import type { SessionCheckpoint } from '../cloud/related-sessions.js'
+import { validLocalPermissions, type LocalPermissions } from '../cloud/session-transfer.js'
 
 const FORMAT_VERSION = 1
 const SESSION_ID = /^[^/\\\0]{1,512}$/
 const SANDBOX_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const WORKSPACE_NAME = SANDBOX_NAME
+
+export interface CloudBinding {
+  phase: 'preparing' | 'remote' | 'returning'
+  controlToken: string
+  initialSeq: number
+  initialHash: string
+  localOrigin: string
+  continueTask: boolean
+  related?: SessionCheckpoint[]
+  localPermissions?: LocalPermissions
+}
 
 export interface PersistedSandboxBinding {
   sessionId: string
@@ -20,6 +33,7 @@ export interface PersistedSandboxBinding {
   workspace: string
   environment: 'production' | 'development'
   provenance: SnapshotMeta
+  cloud?: CloudBinding
 }
 
 interface BindingDocument {
@@ -80,6 +94,21 @@ function parseBinding(value: unknown): PersistedSandboxBinding | undefined {
   if (!finiteNonNegative(item.startedAt) || typeof item.workspace !== 'string' || !WORKSPACE_NAME.test(item.workspace)) return undefined
   if (item.environment !== 'production' && item.environment !== 'development') return undefined
   if (provenance === undefined) return undefined
+  let cloud: CloudBinding | undefined
+  if (item.cloud !== undefined) {
+    const value = item.cloud as Partial<CloudBinding> | null
+    if (value === null || !['preparing', 'remote', 'returning'].includes(value.phase ?? '')
+      || typeof value.controlToken !== 'string' || !/^[a-f0-9]{64}$/.test(value.controlToken)
+      || !Number.isSafeInteger(value.initialSeq) || (value.initialSeq ?? -1) < 0
+      || typeof value.initialHash !== 'string' || !/^[a-f0-9]{64}$/.test(value.initialHash)
+      || typeof value.localOrigin !== 'string' || !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(value.localOrigin)
+      || typeof value.continueTask !== 'boolean') return undefined
+    if (value.related !== undefined && (!Array.isArray(value.related) || value.related.length > 32 || value.related.some(checkpoint =>
+      typeof checkpoint.id !== 'string' || !SESSION_ID.test(checkpoint.id) || !Number.isSafeInteger(checkpoint.seq) || checkpoint.seq < 0 || !/^[a-f0-9]{64}$/.test(checkpoint.hash)
+      || (checkpoint.permissions !== undefined && !validLocalPermissions(checkpoint.permissions))))) return undefined
+    if (value.localPermissions !== undefined && !validLocalPermissions(value.localPermissions)) return undefined
+    cloud = value as CloudBinding
+  }
   return {
     sessionId: item.sessionId,
     ...(typeof item.title === 'string' && item.title.trim() !== '' ? { title: item.title.trim() } : {}),
@@ -91,6 +120,7 @@ function parseBinding(value: unknown): PersistedSandboxBinding | undefined {
     workspace: item.workspace,
     environment: item.environment,
     provenance,
+    ...(cloud === undefined ? {} : { cloud }),
   }
 }
 

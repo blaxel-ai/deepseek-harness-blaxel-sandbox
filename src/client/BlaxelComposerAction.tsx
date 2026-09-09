@@ -1,3 +1,4 @@
+import { prepareDraftHandoff, useSessionDraft } from './useSessionDraft.js'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { ModelReadiness } from '../shared/model-readiness.js'
 import { modelReadinessMessage } from '../shared/model-readiness.js'
@@ -5,16 +6,30 @@ import {
   checkWorkspace, getModelReadiness, moveSession, openWorkspace, saveModelCredential, type LaunchProgress,
 } from './api.js'
 import { BlaxelLaunchPanel } from './BlaxelLaunchPanel.js'
+import { useBlaxelConfirmation } from './BlaxelConfirmDialog.js'
 import { BlaxelModelReadinessPanel } from './BlaxelModelReadinessPanel.js'
-import type { ClientSessionListState } from './context.js'
+import { reconnectWithConsent } from './BlaxelSandboxBanner.js'
+import { SandboxIcon } from './BlaxelSidebarMarker.js'
+import type { ClientConversation, SessionSlotProps } from './context.js'
 import { refreshBlaxelStatus, useBlaxelStatus } from './useBlaxelStatus.js'
 
-export interface BlaxelComposerActionProps {
-  session: { sessionId: string; running: boolean }
-  useSessions: <T>(selector: (state: ClientSessionListState) => T) => T
+export interface BlaxelComposerActionProps extends SessionSlotProps {
+  conversation: ClientConversation
   openSession: (sessionId: string) => void
   setComposerBlock: (sessionId: string, reason?: string) => void
 }
+
+type SandboxState = 'creating' | 'restoring' | 'ready' | 'failed'
+
+/** What the composer chip says about the sandbox, so state is never invisible. */
+export function sandboxChip(state: SandboxState): { label: string; title: string } {
+  if (state === 'ready') return { label: 'On Blaxel', title: 'Connected: this session runs in its Blaxel sandbox.' }
+  if (state === 'failed') return { label: 'Reconnect Blaxel', title: 'Disconnected: the Blaxel sandbox is unavailable. Click to reconnect.' }
+  return { label: 'Connecting…', title: 'Connecting to the Blaxel sandbox.' }
+}
+
+const READY_TONE = 'var(--dsw-alias-state-business-primary, #6da7ff)'
+const FAILED_TONE = 'var(--dsw-alias-state-warn-primary, #f59e0b)'
 
 const actionButton: CSSProperties = {
   alignItems: 'center',
@@ -32,7 +47,10 @@ const actionButton: CSSProperties = {
 }
 
 export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNode {
-  const summary = props.useSessions(state => state.byId[props.session.sessionId])
+  const confirmation = useBlaxelConfirmation()
+  const { sessionId } = props
+  const running = props.useSession(snapshot => snapshot.running)
+  const summary = props.useSessions(state => state.byId[sessionId])
   const status = useBlaxelStatus()
   const [eligible, setEligible] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -40,7 +58,9 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
   const [reason, setReason] = useState<string | undefined>()
   const [readiness, setReadiness] = useState<ModelReadiness | undefined>()
   const [repairOpen, setRepairOpen] = useState(false)
-  const sandboxed = status?.sandboxes.some(item => item.sessionId === props.session.sessionId) === true
+  const sandbox = status?.sandboxes.find(item => item.sessionId === sessionId)
+  const sandboxed = sandbox !== undefined
+  const draftError = useSessionDraft(props, props.conversation, status !== undefined && !sandboxed)
 
   useEffect(() => {
     let current = true
@@ -65,7 +85,7 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
     if (!sandboxed) return
     let current = true
     const check = async (): Promise<void> => {
-      const next = await getModelReadiness(props.session.sessionId).catch((error: unknown): ModelReadiness => ({
+      const next = await getModelReadiness(sessionId).catch((error: unknown): ModelReadiness => ({
         kind: 'verification-failed',
         message: error instanceof Error ? error.message : String(error),
       }))
@@ -77,15 +97,15 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
       current = false
       clearInterval(timer)
     }
-  }, [props.session.sessionId, sandboxed])
+  }, [sessionId, sandboxed])
 
   useEffect(() => {
-    const block = sandboxed && readiness !== undefined && readiness.kind !== 'ready'
+    const block = busy ? 'Moving this conversation. Wait for the cloud session before editing its draft.' : sandbox?.cloud !== undefined ? 'This conversation is on Blaxel. Open the cloud session to continue, or move it back to local.' : sandboxed && readiness !== undefined && readiness.kind !== 'ready'
       ? modelReadinessMessage(readiness)
       : undefined
-    props.setComposerBlock(props.session.sessionId, block)
-    return () => { props.setComposerBlock(props.session.sessionId) }
-  }, [props.session.sessionId, props.setComposerBlock, readiness, sandboxed])
+    props.setComposerBlock(sessionId, block)
+    return () => { props.setComposerBlock(sessionId) }
+  }, [sessionId, props.setComposerBlock, readiness, sandboxed, sandbox?.cloud, busy])
 
   const performLaunch = async (): Promise<void> => {
     if (summary?.cwd === undefined) return
@@ -95,14 +115,16 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
     setPending({ kind, step: 'inspecting', startedAt: now, updatedAt: now })
     refreshBlaxelStatus()
     try {
+      const finishDraft = await prepareDraftHandoff(sessionId)
       const result = summary.blank
-        ? await openWorkspace(summary.cwd, props.session.sessionId, summary.displayTitle)
-        : await moveSession(summary.cwd, props.session.sessionId, summary.displayTitle)
+        ? await openWorkspace(summary.cwd, sessionId, summary.displayTitle)
+        : await moveSession(summary.cwd, sessionId, summary.displayTitle)
       refreshBlaxelStatus()
       setPending(undefined)
-      if (result.sessionId !== props.session.sessionId) props.openSession(result.sessionId)
+      if (result.url !== undefined) { await finishDraft(); window.location.assign(result.url); return }
+      if (result.sessionId !== sessionId) props.openSession(result.sessionId)
     } catch (error) {
-      const next = await getModelReadiness(props.session.sessionId).catch(() => undefined)
+      const next = await getModelReadiness(sessionId).catch(() => undefined)
       if (next !== undefined && next.kind !== 'ready') {
         setReadiness(next)
         setRepairOpen(true)
@@ -115,11 +137,11 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
   }
 
   const launch = async (): Promise<void> => {
-    if (busy || !eligible || summary?.cwd === undefined || props.session.running) return
+    if (busy || !eligible || summary?.cwd === undefined) return
     setBusy(true)
     setReason(undefined)
     try {
-      const next = await getModelReadiness(props.session.sessionId)
+      const next = await getModelReadiness(sessionId)
       setReadiness(next)
       if (next.kind !== 'ready') {
         setRepairOpen(true)
@@ -138,7 +160,7 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
     setBusy(true)
     setReason(undefined)
     try {
-      const next = await getModelReadiness(props.session.sessionId)
+      const next = await getModelReadiness(sessionId)
       setReadiness(next)
       if (next.kind !== 'ready') return
       setRepairOpen(false)
@@ -155,7 +177,7 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
     setBusy(true)
     setReason(undefined)
     try {
-      const next = await saveModelCredential(props.session.sessionId, credential)
+      const next = await saveModelCredential(sessionId, credential)
       setReadiness(next)
       setRepairOpen(false)
       if (!sandboxed) await performLaunch()
@@ -182,26 +204,66 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
     onDismiss={() => { setRepairOpen(false); setReason(undefined) }}
   />
 
-  if (sandboxed) {
-    if (readiness === undefined || readiness.kind === 'ready') return panel
-    const label = readiness.kind === 'credential-missing' ? `Connect ${readiness.providerName}` : 'Fix model'
+  if (sandbox !== undefined) {
+    const failed = sandbox.state === 'failed'
+    const chip = sandboxChip(sandbox.state)
+    const tone = failed ? FAILED_TONE : READY_TONE
+    const reconnect = async (): Promise<void> => {
+      if (busy) return
+      setBusy(true)
+      setReason(undefined)
+      try {
+        const outcome = await reconnectWithConsent(sessionId, confirmation.confirm)
+        if (outcome !== 'cancelled') refreshBlaxelStatus()
+      } catch (error) {
+        setReason(error instanceof Error ? error.message : String(error))
+      } finally {
+        setBusy(false)
+      }
+    }
+    const model = readiness === undefined || readiness.kind === 'ready'
+      ? null
+      : <button type="button" style={actionButton} disabled={busy} onClick={() => { setRepairOpen(true) }}>
+        {busy ? 'Checking…' : readiness.kind === 'credential-missing' ? `Connect ${readiness.providerName}` : 'Fix model'}
+      </button>
     return <>
+      {draftError !== undefined && <span role="status">{draftError}</span>}
+    {confirmation.dialog}
       {panel}
       {repair}
-      <button type="button" style={actionButton} disabled={busy} onClick={() => { setRepairOpen(true) }}>
-        {busy ? 'Checking…' : label}
+      {model}
+      <button
+        type="button"
+        aria-label={chip.title}
+        data-blaxel-sandbox-chip={sandbox.state}
+        disabled={!failed || busy}
+        onClick={() => { void reconnect() }}
+        style={{
+          ...actionButton,
+          borderColor: `color-mix(in srgb, ${tone} 48%, transparent)`,
+          color: tone,
+          cursor: failed && !busy ? 'pointer' : 'default',
+          gap: 6,
+          opacity: 1,
+        }}
+        title={reason ?? chip.title}
+      >
+        <SandboxIcon size={13} />
+        {busy ? 'Reconnecting…' : chip.label}
       </button>
     </>
   }
 
-  const disabled = !eligible || busy || props.session.running
-  const title = props.session.running
-    ? 'Wait for the current turn to finish before creating a sandbox session'
+  const disabled = !eligible || busy
+  const title = running
+    ? 'Move after the current tool finishes, then continue the task on Blaxel'
     : reason ?? (summary?.blank
-      ? 'Open this Git worktree in a Blaxel sandbox'
-      : 'Move this session to a Blaxel sandbox')
+      ? 'Create a new Blaxel sandbox from your current local files'
+      : 'Move this session to a new Blaxel sandbox from your current local files')
 
   return <>
+    {draftError !== undefined && <span role="status">{draftError}</span>}
+    {confirmation.dialog}
     {panel}
     {repair}
     <button

@@ -36,13 +36,6 @@ export interface ModelSelection {
   model: string
 }
 
-interface ConfigurableProvider {
-  provider: string
-  displayName: string
-  settingsNs: string
-  settingsPath: readonly string[]
-}
-
 interface CredentialView {
   configured: boolean
   writable: boolean
@@ -88,6 +81,10 @@ export interface BlaxelSessionProjections {
 }
 
 declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /** Native session-list publication after adopting durable conversation history. */
+    'api-session/added'(item: SessionListItem): void
+  }
   interface Context {
     webServer: BlaxelWebServer
     sessionController: BlaxelSessionController

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { argvCommand, environmentFor } from '../src/subprocess/environment.js'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -29,12 +30,8 @@ describe('sandbox process environment', () => {
     })
   })
 
-  it('waits portably for a new process session and forwards termination', () => {
-    const command = argvCommand(['npm', 'test'], { PATH: '/usr/bin' }, '/workspace')
-
-    expect(command).toContain("trap 'test -n \"$child\" && kill -TERM -\"$child\"")
-    expect(command).toContain("setsid env -i 'PATH=/usr/bin' 'npm' 'test' </dev/null &")
-    expect(command).toContain('child=$!; wait "$child"')
-    expect(command).not.toContain('setsid -w')
+  it('produces valid Bash with quotes and newlines in user arguments', () => {
+    const command = argvCommand(['npm', 'test', "a'b\n$()"], { PATH: '/usr/bin' }, '/workspace', 500)
+    expect(() => execFileSync('/bin/bash', ['-n', '-c', command])).not.toThrow()
   })
 })

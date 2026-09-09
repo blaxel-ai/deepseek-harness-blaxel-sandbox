@@ -1,3 +1,7 @@
+import { draftRequest } from './cloud/draft.js'
+import { returnLanding } from './web/return-landing.js'
+import { cloudHandoff } from './cloud.js'
+import '@deepseek-ai/dsh-client-connection'
 import type { BlaxelHttpRequest, BlaxelHttpResponse, BlaxelWebContext } from './web/context.js'
 import {
   permitsAction,
@@ -8,7 +12,9 @@ import {
   readLoginRequest,
   readModelCredentialRequest,
   readMoveRequest,
+  readReconnectRequest,
   readSessionRequest,
+  readCloudReturnRequest,
   readWorkspaceRequest,
   routeAction,
   writeJson,
@@ -17,59 +23,82 @@ import { configureMissingModelCredential, inspectModelReadiness, requireReadyMod
 import { inspectGitWorkspace } from './web/workspace-snapshot.js'
 
 export const name = 'dsh-blaxel-web'
+
+/** Error code the client turns into a consent prompt before a lost sandbox is replaced. */
+export const SANDBOX_MISSING = 'sandbox-missing'
 export const inject = [
   'webServer',
   'sessionController',
+  'sessionProjections',
   'workspaceController',
   'settingsController',
   'credentialsController',
   'llm',
   'agentDefaultModel',
   'blaxelSessions',
+  'blaxelCloud',
+  'connection',
 ]
 
-async function sourceIsIdle(ctx: BlaxelWebContext, sessionId: string): Promise<boolean> {
+async function sourceIsIdle(ctx: BlaxelWebContext, sessionId: string, allowNew = false): Promise<boolean> {
   const { items } = await ctx.sessionController.list({}, new AbortController().signal)
-  return items.find(item => item.sessionId === sessionId)?.running === false
+  const source = items.find(item => item.sessionId === sessionId)
+  return source === undefined ? allowNew : source.running === false
+}
+
+function localOrigin(req: BlaxelHttpRequest): string {
+  const host = req.headers.host
+  if (typeof host !== 'string' || !/^(?:localhost|127\.0\.0\.1):\d+$/.test(host)) throw new Error('Open DSH through its local browser address before moving a session')
+  return `http://${host}`
 }
 
 async function handleOpen(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: BlaxelWebContext): Promise<void> {
   if (!permitsAction(req, 'open')) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
-  let prepared: Awaited<ReturnType<typeof ctx.blaxelSessions.prepare>> | undefined
   try {
     const request = await readMoveRequest(req)
-    await requireReadyModel(ctx, request.sessionId)
     const workspace = await inspectGitWorkspace(request.cwd)
     const registered = await ctx.workspaceController.create({ path: workspace.cwd })
-    prepared = await ctx.blaxelSessions.prepare(workspace.cwd, 'open')
-    const created = await ctx.sessionController.create({
-      workspaceId: registered.workspace.workspaceId,
-      sessionId: request.sessionId,
-    })
-    await ctx.blaxelSessions.bind(prepared, created.sessionId, request.title)
-    prepared = undefined
-    writeJson(res, 200, { ok: true, sessionId: created.sessionId })
+    await ctx.sessionController.create({ workspaceId: registered.workspace.workspaceId, sessionId: request.sessionId })
+    writeJson(res, 200, { ok: true, ...await cloudHandoff(ctx).move(request.sessionId, workspace.cwd, localOrigin(req), request.title) })
   } catch (error) {
-    if (prepared !== undefined) await ctx.blaxelSessions.discard(prepared)
-    writeJson(res, 500, { ok: false, error: error instanceof Error ? error.message : 'Could not start the sandbox session' })
+    writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'Could not create the cloud session' })
   }
 }
 
 async function handleMove(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: BlaxelWebContext): Promise<void> {
   if (!permitsAction(req, 'move')) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
-  let prepared: Awaited<ReturnType<typeof ctx.blaxelSessions.prepare>> | undefined
   try {
     const request = await readMoveRequest(req)
-    if (!await sourceIsIdle(ctx, request.sessionId)) throw new Error('Wait for the current turn to finish before moving this session')
-    await requireReadyModel(ctx, request.sessionId)
-    prepared = await ctx.blaxelSessions.prepare(request.cwd, 'move')
-    if (!await sourceIsIdle(ctx, request.sessionId)) throw new Error('The session started running while its sandbox was being prepared')
-    await ctx.blaxelSessions.bind(prepared, request.sessionId, request.title)
-    prepared = undefined
-    writeJson(res, 200, { ok: true, sessionId: request.sessionId })
+    writeJson(res, 200, { ok: true, ...await cloudHandoff(ctx).move(request.sessionId, request.cwd, localOrigin(req), request.title) })
   } catch (error) {
-    if (prepared !== undefined) await ctx.blaxelSessions.discard(prepared)
-    writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'Could not create the sandbox session' })
+    writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'Could not move the cloud session' })
+  }
+}
+
+async function handleReconnect(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: BlaxelWebContext): Promise<void> {
+  if (!permitsAction(req, 'reconnect')) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
+  try {
+    const { sessionId, recreate } = await readReconnectRequest(req)
+    const binding = ctx.blaxelSessions.binding(sessionId)
+    const result = await ctx.blaxelSessions.reconnect(sessionId)
+    if (result === 'missing') {
+      // Replacing a lost sandbox discards whatever lived only inside it, so it
+      // never happens without the user's explicit consent.
+      if (!recreate) return writeJson(res, 409, { ok: false, error: SANDBOX_MISSING })
+      if (!await sourceIsIdle(ctx, sessionId)) throw new Error('Wait for the current turn to finish before reconnecting this sandbox')
+      await requireReadyModel(ctx, sessionId)
+      if (binding?.cloud !== undefined) {
+        await cloudHandoff(ctx).discard(sessionId)
+        const moved = await cloudHandoff(ctx).move(sessionId, binding.sourceRoot, binding.cloud.localOrigin, binding.title)
+        return writeJson(res, 200, { ok: true, outcome: 'recreated', url: moved.url })
+      }
+      await ctx.blaxelSessions.recreateMissing(sessionId)
+      return writeJson(res, 200, { ok: true, outcome: 'recreated' })
+    }
+    const opened = binding?.cloud === undefined ? {} : await cloudHandoff(ctx).open(sessionId)
+    writeJson(res, 200, { ok: true, outcome: 'reconnected', ...opened })
+  } catch (error) {
+    writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'Could not reconnect the sandbox' })
   }
 }
 
@@ -77,7 +106,7 @@ async function handleClose(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx:
   if (!permitsAction(req, 'close')) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
   try {
     const { sessionId } = await readSessionRequest(req)
-    await ctx.blaxelSessions.close(sessionId)
+    await cloudHandoff(ctx).discard(sessionId)
     writeJson(res, 200, { ok: true })
   } catch (error) {
     writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'Could not stop the sandbox' })
@@ -99,7 +128,11 @@ async function handleDivergence(req: BlaxelHttpRequest, res: BlaxelHttpResponse,
 async function handleSyncLocal(req: BlaxelHttpRequest, res: BlaxelHttpResponse, ctx: BlaxelWebContext): Promise<void> {
   if (!permitsAction(req, 'sync-local')) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
   try {
-    const { sessionId } = await readSessionRequest(req)
+    const { sessionId, reviewHash } = await readCloudReturnRequest(req)
+    if (reviewHash !== undefined || ctx.blaxelSessions.binding(sessionId)?.cloud !== undefined) {
+      if (reviewHash === undefined) throw new Error('Review the changes before moving this cloud session back')
+      return writeJson(res, 200, { ok: true, ...await cloudHandoff(ctx).returnLocal(sessionId, reviewHash) })
+    }
     if (!await sourceIsIdle(ctx, sessionId)) throw new Error('Wait for the current turn to finish before moving changes locally')
     writeJson(res, 200, { ok: true, ...await ctx.blaxelSessions.moveChangesLocal(sessionId) })
   } catch (error) {
@@ -108,11 +141,32 @@ async function handleSyncLocal(req: BlaxelHttpRequest, res: BlaxelHttpResponse, 
 }
 
 export function apply(ctx: BlaxelWebContext): void {
+  // A committed same-origin landing lets the browser send DSH's Strict cookie.
+  // This public page contains no session data and performs no transfer action.
+  ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: '/blaxel/return', handler: (req, res) => {
+    const html = req.method === 'GET' ? returnLanding(req.url ?? '') : undefined
+    res.writeHead(html === undefined ? 400 : 200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'" })
+    res.end(html ?? 'Invalid return address')
+  } }))
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: '/blaxel/api',
     handler: async (req, res) => {
+      const rejection = ctx.connection.requestRejection(req)
+      if (rejection !== undefined) return writeJson(res, rejection, { ok: false, error: 'action-not-authorized' })
       const action = routeAction(req)
+      if (action === 'draft') return await draftRequest(req, res, cloudHandoff(ctx).drafts, id => !cloudHandoff(ctx).blocks(id))
+      if (action === 'mode' && req.method === 'GET') return writeJson(res, 200, { ok: true, mode: 'local' })
+      if ((action === 'cloud-open' || action === 'review') && req.method === 'POST') {
+        if (!permitsAction(req, action)) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
+        try {
+          const { sessionId } = await readSessionRequest(req)
+          const result = action === 'cloud-open' ? await cloudHandoff(ctx).open(sessionId) : await cloudHandoff(ctx).review(sessionId)
+          return writeJson(res, 200, { ok: true, ...result })
+        } catch (error) {
+          return writeJson(res, 422, { ok: false, error: error instanceof Error ? error.message : 'The cloud session could not be reached' })
+        }
+      }
       if (action === 'status' && req.method === 'GET') {
         if (!permitsRead(req)) return writeJson(res, 403, { ok: false, error: 'action-not-authorized' })
         return writeJson(res, 200, {
@@ -151,6 +205,7 @@ export function apply(ctx: BlaxelWebContext): void {
       }
       if (action === 'open' && req.method === 'POST') return await handleOpen(req, res, ctx)
       if (action === 'move' && req.method === 'POST') return await handleMove(req, res, ctx)
+      if (action === 'reconnect' && req.method === 'POST') return await handleReconnect(req, res, ctx)
       if (action === 'divergence' && req.method === 'POST') return await handleDivergence(req, res, ctx)
       if (action === 'sync-local' && req.method === 'POST') return await handleSyncLocal(req, res, ctx)
       if (action === 'close' && req.method === 'POST') return await handleClose(req, res, ctx)

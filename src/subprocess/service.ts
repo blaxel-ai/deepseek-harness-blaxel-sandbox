@@ -67,6 +67,7 @@ export class BlaxelSubprocessRuntime extends SubprocessRuntime {
 
   spawn(spec: SubprocessSpawnSpec): SubprocessHandle {
     if (this.disposing) throw new Error('dsh-subprocess-blaxel: service is disposing')
+    spec.signal?.throwIfAborted()
     if (spec.argv.length === 0 || !spec.argv[0]) throw new Error('invalid argv: expected a non-empty program')
     if (!Number.isFinite(spec.graceMs) || spec.graceMs <= 0 || spec.graceMs > MAX_TIMER_DELAY_MS) throw new Error('invalid graceMs')
     const handle = new BlaxelProcessHandle(this.ctx.blaxel, {
@@ -75,8 +76,14 @@ export class BlaxelSubprocessRuntime extends SubprocessRuntime {
       cwd: this.ctx.blaxel.toRemotePath(spec.cwd),
     })
     this.live.add(handle)
-    void handle.done.finally(() => this.live.delete(handle))
-    if (spec.signal !== undefined) spec.signal.addEventListener('abort', () => handle.terminate(), { once: true })
+    // `done` rejects when the sandbox is gone; a bare .finally() would re-raise that as an unhandled rejection.
+    const abort = () => handle.terminate()
+    const finished = () => {
+      this.live.delete(handle)
+      spec.signal?.removeEventListener('abort', abort)
+    }
+    void handle.done.then(finished, finished)
+    spec.signal?.addEventListener('abort', abort, { once: true })
     return handle
   }
 
