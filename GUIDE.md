@@ -109,6 +109,8 @@ Open a Git-backed workspace in DSH and create or select a session.
 
 Before creating a sandbox, the plugin requires a portable API-key model using the native pi-ai or DeepSeek provider. Local OAuth grants and laptop-only endpoints are rejected before ownership changes. Only the selected model key is sent to the cloud host; Blaxel credentials stay local. Configuration checks do not prove provider quota or key validity.
 
+The cloud agent has full access inside its dedicated VM and runs without per-tool approval. Trust its model, project commands, and tools with the session and selected model key. Private preview authentication controls external browser access; it does not separate the host from code inside the VM. Returning to local restores the permissions captured before handoff. See [SECURITY.md](./SECURITY.md).
+
 The launch action:
 
 1. Resolves the current Git worktree and subdirectory.

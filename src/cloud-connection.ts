@@ -29,6 +29,7 @@ export class PreviewSessionAuth implements AuthContract {
   isAuthenticated(request: ConnectionTrustRequest): boolean {
     // The private preview edge validates the bearer token, removes its cookie,
     // and overwrites these identity headers before forwarding to this isolated VM.
+    // The VM is the trust boundary: these headers do not authenticate same-VM code.
     const hostname = new URL(this.origin).hostname
     return header(request, 'x-forwarded-host') === new URL(this.origin).host
       && header(request, 'x-forwarded-proto') === 'https'

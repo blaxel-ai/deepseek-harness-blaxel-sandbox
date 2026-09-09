@@ -45,13 +45,15 @@ export async function bootCloudHost(sandbox: SandboxInstance, seed: Omit<CloudSe
   await sandbox.fs.writeBinary(`${CLOUD_ROOT}/plugin.tgz`, await packageArchive())
   if (init.exitCode === 1) await sandbox.fs.write(`${CLOUD_ROOT}/seed.json`, JSON.stringify({ ...seed, previewOrigin: origin }))
   await sandbox.fs.write(`${CLOUD_ROOT}/home/settings.yaml`, stringify(settings))
+  await sandbox.fs.write(`${CLOUD_ROOT}/npmrc`, '')
   await sandbox.fs.write(`${CLOUD_ROOT}/home/profiles/web/package.json`, JSON.stringify({ name: 'dsh-cloud-session', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } } }))
   await sandbox.fs.write(`${CLOUD_ROOT}/home/profiles/web/cordis.patch.yml`, (await readFile(join(packageRoot, 'cloud.patch.yml'), 'utf8'))
     .replaceAll('__DSH_PREVIEW_HOST__', new URL(origin).host)
     .replaceAll('__DSH_PLUGIN_ROOT__', `${CLOUD_ROOT}/runtime/node_modules/@blaxel/dsh-sandbox`))
   const install = await sandbox.process.exec({
     name: `dsh-host-install-${attempt}`,
-    command: `npm install --prefix ${CLOUD_ROOT}/runtime --no-audit --no-fund --omit=dev @deepseek-ai/dsh@${DSH_VERSION} ${CLOUD_ROOT}/plugin.tgz && ln -sfn ${CLOUD_ROOT}/runtime/node_modules ${CLOUD_ROOT}/home/profiles/web/node_modules`,
+    command: `npm install --ignore-scripts --userconfig=${CLOUD_ROOT}/npmrc --globalconfig=/dev/null --prefix ${CLOUD_ROOT}/runtime --no-audit --no-fund --omit=dev @deepseek-ai/dsh@${DSH_VERSION} ${CLOUD_ROOT}/plugin.tgz && ln -sfn ${CLOUD_ROOT}/runtime/node_modules ${CLOUD_ROOT}/home/profiles/web/node_modules`,
+    workingDir: CLOUD_ROOT,
     waitForCompletion: true, timeout: 300,
   })
   if (install.exitCode !== 0) throw new Error('The pinned DeepSeek Harness cloud runtime could not be installed; your local conversation is intact')

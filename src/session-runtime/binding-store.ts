@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import type { SnapshotMeta } from '../web/workspace-snapshot.js'
 import type { SessionCheckpoint } from '../cloud/related-sessions.js'
+import { validLocalPermissions, type LocalPermissions } from '../cloud/session-transfer.js'
 
 const FORMAT_VERSION = 1
 const SESSION_ID = /^[^/\\\0]{1,512}$/
@@ -18,6 +19,7 @@ export interface CloudBinding {
   localOrigin: string
   continueTask: boolean
   related?: SessionCheckpoint[]
+  localPermissions?: LocalPermissions
 }
 
 export interface PersistedSandboxBinding {
@@ -102,7 +104,9 @@ function parseBinding(value: unknown): PersistedSandboxBinding | undefined {
       || typeof value.localOrigin !== 'string' || !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(value.localOrigin)
       || typeof value.continueTask !== 'boolean') return undefined
     if (value.related !== undefined && (!Array.isArray(value.related) || value.related.length > 32 || value.related.some(checkpoint =>
-      typeof checkpoint.id !== 'string' || !SESSION_ID.test(checkpoint.id) || !Number.isSafeInteger(checkpoint.seq) || checkpoint.seq < 0 || !/^[a-f0-9]{64}$/.test(checkpoint.hash)))) return undefined
+      typeof checkpoint.id !== 'string' || !SESSION_ID.test(checkpoint.id) || !Number.isSafeInteger(checkpoint.seq) || checkpoint.seq < 0 || !/^[a-f0-9]{64}$/.test(checkpoint.hash)
+      || (checkpoint.permissions !== undefined && !validLocalPermissions(checkpoint.permissions))))) return undefined
+    if (value.localPermissions !== undefined && !validLocalPermissions(value.localPermissions)) return undefined
     cloud = value as CloudBinding
   }
   return {

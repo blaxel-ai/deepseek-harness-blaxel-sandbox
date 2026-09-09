@@ -2,9 +2,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
-import { MAX_SESSION_BYTES, validateSessionTransfer } from './session-transfer.js'
+import { MAX_SESSION_BYTES, validateSessionTransfer, type LocalPermissions } from './session-transfer.js'
 
-export interface SessionCheckpoint { id: string; seq: number; hash: string }
+export interface SessionCheckpoint { id: string; seq: number; hash: string; permissions?: LocalPermissions }
 const MAX_RELATED = 32
 
 /** Include descendants only, never siblings or unrelated conversations from the profile. */

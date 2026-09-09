@@ -1,9 +1,31 @@
 import { createHash } from 'node:crypto'
 import { Session, SessionId, SessionLogOffset, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
+import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type {} from '@deepseek-ai/dsh-user-approval'
+import type {} from '@deepseek-ai/dsh-permission-presets'
 
 export const MAX_SESSION_BYTES = 16 * 1024 * 1024
 export const MAX_SESSION_EVENTS = 100_000
+
+export interface LocalPermissions {
+  sandbox: 'read-only' | 'workspace-write' | 'danger-full-access'
+  approval: 'ask' | 'never'
+  preset?: string
+}
+
+export function validLocalPermissions(value: unknown): value is LocalPermissions {
+  if (typeof value !== 'object' || value === null) return false
+  const item = value as Partial<LocalPermissions>
+  return ['read-only', 'workspace-write', 'danger-full-access'].includes(item.sandbox ?? '') && ['ask', 'never'].includes(item.approval ?? '')
+    && (item.preset === undefined || (typeof item.preset === 'string' && item.preset.length > 0 && item.preset.length <= 200))
+}
+
+export function localPermissions(ctx: Context, session: Session): LocalPermissions {
+  const preset = ctx.permissionPresets.current(session)
+  return { sandbox: ctx.sandboxPolicy.resolve({ session }).mode, approval: ctx.approval.overrideOf(session) ?? ctx.approval.config.policy ?? 'ask', ...(preset === 'custom' ? {} : { preset }) }
+}
 
 /** Transport the native log; never reconstruct a conversation from rendered chat text. */
 export function validateSessionTransfer(value: unknown, expectedId: string): SessionInspection {
@@ -39,14 +61,22 @@ export function remainingSeedEvents(seed: SessionInspection, stored: SessionInsp
 }
 
 /** Cloud VM permissions must never become the returning laptop's permissions. */
-export function withLocalPermissions(remote: SessionInspection, original: readonly SessionEvent[]): SessionInspection {
+export function withLocalPermissions(remote: SessionInspection, original: readonly SessionEvent[], fallback?: LocalPermissions): SessionInspection {
+  if (fallback !== undefined && !validLocalPermissions(fallback)) throw new Error('The saved local permissions are invalid; both copies were preserved')
   const types = ['permission/preset', 'sandbox/mode', 'approval/policy'] as const
   const events = [...remote.events]
+  const defaults = {
+    'permission/preset': fallback?.preset === undefined ? undefined : { preset: fallback.preset },
+    'sandbox/mode': fallback === undefined ? undefined : { mode: fallback.sandbox },
+    'approval/policy': fallback === undefined ? undefined : { policy: fallback.approval },
+  }
   for (const type of types) {
     const before = original.findLast(event => event.type === type)
     const current = events.findLast(event => event.type === type)
-    if (before !== undefined && JSON.stringify(before.data) !== JSON.stringify(current?.data)) {
-      events.push({ type: before.type, seq: events.length, time: Date.now(), data: before.data } as SessionEvent)
+    const data = before?.data ?? defaults[type]
+    if (data === undefined && current !== undefined && type !== 'permission/preset') throw new Error('The original laptop permissions were not captured. Both copies were preserved; restore local permissions before retrying this return.')
+    if (data !== undefined && JSON.stringify(data) !== JSON.stringify(current?.data)) {
+      events.push({ type, seq: events.length, time: Date.now(), data } as SessionEvent)
     }
   }
   return validateSessionTransfer({ ...remote, events }, remote.meta.id)

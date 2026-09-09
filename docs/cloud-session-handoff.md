@@ -17,6 +17,8 @@ See [GUIDE.md](../GUIDE.md) for installation, authentication, conflict recovery,
 
 A dedicated pinned DSH host runs inside the private sandbox. The selected native pi-ai or DeepSeek model API key enters that process; Blaxel credentials stay local. Server-side admission prevents the held local session from dispatching competing work. Remote failures never fall back to local tools.
 
+The VM is the security boundary: the cloud agent has full access inside it, without per-tool approval. Its model and tools must be trusted with the session and selected model key. Private preview authentication protects external browser access; it does not isolate credentials or local services from commands inside that same VM. See [SECURITY.md](../SECURITY.md) for the complete trust boundary.
+
 A running root task checkpoints at a safe tool boundary. Local child agents must be idle before outbound handoff. During return, cloud children finish before the checkpoint because a one-shot child cannot resume after a cold restart.
 
 History import preserves original native event timestamps through an isolated pinned runtime extension. The package launcher installs that runtime in its own cache and leaves the global DSH installation unchanged. Imported children are published to the native session list. A successful cloud return reopens the saved local conversation automatically, recreating native image-preview handles and selecting the correct root even when return started in another session.
@@ -37,7 +39,7 @@ Return checks the reviewed patch hash again, rejects conflicting local history o
 - Image and child return: 12,424 root events, 1,133 events in a pre-existing child, and 1,574 events in a cloud-created child matched after decoding native storage, including timestamps. The referenced JPEG hash and unsent text/image draft matched exactly.
 - Repeated acceptance: 15,329 root events and three child histories matched on the next return, with the image bytes and pending draft intact. The new child appeared in the native list without manual refresh.
 - Recovery: identical repeated checkpoint after a cloud-host restart, safe conflict handling, failed-checkpoint retry, failed-release fencing, partial-child-import retry, local-host restart, and durable receipt recovery after cleanup interruption.
-- Authentication: anonymous and forged requests returned 401, an expired preview token returned 401, valid login and clean-root access returned 200, cross-origin requests returned 403, and renewed access returned 200. Preview tokens were absent from the final address bar.
+- Authentication at the external private preview edge: anonymous and forged requests returned 401, an expired preview token returned 401, valid login and clean-root access returned 200, cross-origin requests returned 403, and renewed access returned 200. Preview tokens were absent from the final address bar. These checks do not establish authentication against code already running inside the VM.
 - Validation: 195 keyless tests passed. All three opt-in live sandbox tests passed separately. Fresh package installs booted the native Web plugin on Node 22.22.3, 24.20.0, and 26.3.0. Lint, types, build, and package checks passed; publint reports two known warnings for the native client companion manifests.
 
 The private acceptance artifacts and screenshot manifest are maintained with the DeepSeek blog project. They contain no published credential links. Publication must use the exact final package and its checks, rather than treating earlier public CI as cloud-handoff proof.

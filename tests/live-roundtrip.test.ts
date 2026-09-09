@@ -99,6 +99,13 @@ describe.skipIf(!enabled)('real session round trips and recovery', () => {
     const address = new URL(String(opened.url))
     // Never put the private address in assertion output or persisted artifacts.
     expect((await fetch(address.origin, { signal: AbortSignal.timeout(30_000) })).status).toBe(401)
+    const forged = await fetch(address.origin, { signal: AbortSignal.timeout(30_000), headers: {
+      'x-forwarded-host': address.host, 'x-forwarded-proto': 'https',
+      'x-blaxel-auth-method': 'preview_token', 'x-blaxel-subject-type': 'preview_token',
+      'x-blaxel-subject-id': `preview:${address.hostname.split('.')[0]}`,
+      'x-blaxel-workload-type': 'sandboxes', 'x-blaxel-workload': remote.runtime.name, 'x-blaxel-workspace': remote.workspace,
+    } })
+    expect(forged.status).toBe(401)
     const login = await fetch(address, { signal: AbortSignal.timeout(30_000), redirect: 'manual' })
     expect(login.status).toBe(200)
     expect(login.headers.get('content-type')).toContain('text/html')
@@ -106,11 +113,28 @@ describe.skipIf(!enabled)('real session round trips and recovery', () => {
     const mode = await fetch(address, { signal: AbortSignal.timeout(30_000) })
     expect(mode.status).toBe(200)
     expect(await mode.json()).toMatchObject({ ok: true, mode: 'cloud', sessionId: local.id })
+    // Exercise the installed native Linux subprocess runtime after --ignore-scripts.
+    // Synthetic values only: never print the host environment or real credentials.
+    await sandbox.fs.write('/opt/dsh-blaxel/runtime/check-subprocess.mjs', `
+      import { Context } from '@deepseek-ai/cordis';
+      import { LocalSubprocessRuntime } from '@deepseek-ai/dsh-subprocess-local';
+      const ctx = new Context();
+      const owner = await ctx.plugin(LocalSubprocessRuntime);
+      const keys = ['DSH_BLAXEL_MODEL_KEY', 'DSH_BLAXEL_CONTROL_TOKEN', 'DSH_BLAXEL_BROWSER_TOKEN'];
+      for (const key of keys) process.env[key] = 'synthetic-test-value';
+      try {
+        const child = ctx.subprocess.spawn({ argv: [process.execPath, '-e', 'process.exit(' + JSON.stringify(keys) + '.every(k => process.env[k] === undefined) ? 0 : 1)'], cwd: '/workspace', stdio: { stdin: 'ignore', stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } }, graceMs: 1000 });
+        if ((await child.done).exitCode !== 0) throw new Error('Native child environment check failed');
+        const terminal = await ctx.subprocess.spawnTerminal({ argv: ['/bin/sh', '-c', 'exit 0'], cwd: '/workspace', rows: 24, cols: 80, graceMs: 1000 });
+        if ((await terminal.done).exitCode !== 0) throw new Error('Native terminal check failed');
+      } finally { await owner.dispose(); }
+    `)
+    expect((await sandbox.process.exec({ command: 'node /opt/dsh-blaxel/runtime/check-subprocess.mjs', workingDir: '/opt/dsh-blaxel/runtime', waitForCompletion: true, timeout: 30 })).exitCode).toBe(0)
     await remote.fs.writeText(await remote.fs.resolve('feature.txt'), 'cloud host round trip\n')
     const frozen = await cloudRequest(sandbox, controlToken, 'freeze')
     expect(frozen.draft).toMatchObject({ draft })
     expect((await cloudRequest(sandbox, controlToken, 'freeze')).session).toEqual(frozen.session)
-    const transferred = withLocalPermissions(validateSessionTransfer(frozen.session, local.id), initial)
+    const transferred = withLocalPermissions(validateSessionTransfer(frozen.session, local.id), initial, { sandbox: 'workspace-write', approval: 'ask', preset: 'workspace-write' })
     importSessionTail(local, transferred, initial.length, sessionPrefixHash(initial))
     expect(local.snapshotEvents()).toEqual(transferred.events)
     await sessions.moveChangesLocal(local.id)

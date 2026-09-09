@@ -7,13 +7,13 @@ import { createHash, randomBytes } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { SessionId, type Session } from '@deepseek-ai/dsh-session'
+import { SessionId, Session } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import type { BlaxelWebContext } from './web/context.js'
 import type { CloudBinding } from './session-runtime/binding-store.js'
 import { cloudModel } from './cloud/model.js'
 import { bootCloudHost, cloudRequest, waitForCloudHost } from './cloud/bootstrap.js'
-import { importSessionTail, sessionPrefixHash, validateSessionTransfer, withLocalPermissions } from './cloud/session-transfer.js'
+import { importSessionTail, localPermissions, sessionPrefixHash, validateSessionTransfer, withLocalPermissions } from './cloud/session-transfer.js'
 import { divergenceReader } from './web/divergence.js'
 import { applySandboxPatch } from './web/local-sync.js'
 import type { CloudExecutionOwner } from './cloud-gateway.js'
@@ -30,7 +30,7 @@ function inspect(session: Session): SessionInspection {
 
 /** Owns the transfer transaction; the sandbox owns every model/tool step after handoff. */
 export default class BlaxelCloudHandoff extends Service implements CloudExecutionOwner {
-  static inject = ['blaxelSessions', 'agents', 'sessions', 'sessionPersistence', 'sessionController', 'sessionProjections', 'llm', 'settingsController', 'credentialsController', 'agentDefaultModel', 'credentials', 'launchEnvironment', 'attachments']
+  static inject = ['blaxelSessions', 'agents', 'sessions', 'sessionPersistence', 'sessionController', 'sessionProjections', 'llm', 'settingsController', 'credentialsController', 'agentDefaultModel', 'credentials', 'launchEnvironment', 'attachments', 'sandboxPolicy', 'approval', 'permissionPresets']
   readonly drafts = new DraftStore()
   private readonly moving = new Set<string>()
   private readonly holds = new Map<string, () => void>()
@@ -108,7 +108,8 @@ export default class BlaxelCloudHandoff extends Service implements CloudExecutio
       const cloud: CloudBinding = {
         phase: 'preparing', controlToken: randomBytes(32).toString('hex'),
         initialSeq: session.events.length, initialHash: sessionPrefixHash(session.events), localOrigin, continueTask,
-        related: related.map(item => ({ id: item.meta.id, seq: item.events.length, hash: sessionPrefixHash(item.events) })),
+        localPermissions: localPermissions(this.ctx, agent.session),
+        related: related.map(item => ({ id: item.meta.id, seq: item.events.length, hash: sessionPrefixHash(item.events), permissions: localPermissions(this.ctx, this.ctx.sessions.get(item.meta.id) ?? Session.fromRestore(item.meta.id, structuredClone(item.events), item.meta, item.inheritedEventCount)) })),
       }
       if (sessionPrefixHash(agent.session.snapshotEvents()) !== cloud.initialHash) throw new Error('New local input arrived during handoff. Retry to include it.')
       const remote = await this.ctx.blaxelSessions.bind(prepared, sessionId, title, cloud)
@@ -236,7 +237,7 @@ export default class BlaxelCloudHandoff extends Service implements CloudExecutio
       const agent = this.ctx.agents.get(SessionId(sessionId))
       if (agent !== undefined) this.hold(agent)
       const local = agent === undefined ? validateSessionTransfer(await this.ctx.sessionPersistence.inspect(SessionId(sessionId)), sessionId) : inspect(agent.session)
-      const transcript = withLocalPermissions(remoteTranscript, local.events.slice(0, binding.cloud.initialSeq))
+      const transcript = withLocalPermissions(remoteTranscript, local.events.slice(0, binding.cloud.initialSeq), binding.cloud.localPermissions)
       if (sessionPrefixHash(local.events, binding.cloud.initialSeq) !== binding.cloud.initialHash
         || sessionPrefixHash(transcript.events, local.events.length) !== sessionPrefixHash(local.events)) {
         throw new Error('The local conversation changed after handoff. Both copies were preserved; nothing was applied.')
@@ -247,7 +248,7 @@ export default class BlaxelCloudHandoff extends Service implements CloudExecutio
       for (const remoteChild of related) {
         const child = withLocalPermissions(remoteChild, remoteChild.events.slice(0, checkpoints.get(remoteChild.meta.id)?.seq ?? 0).length > 0
           ? remoteChild.events.slice(0, checkpoints.get(remoteChild.meta.id)!.seq)
-          : local.events.slice(0, binding.cloud.initialSeq))
+          : local.events.slice(0, binding.cloud.initialSeq), checkpoints.get(remoteChild.meta.id)?.permissions ?? binding.cloud.localPermissions)
         const checkpoint = checkpoints.get(child.meta.id)
         const localChild = localHeaders.has(child.meta.id) ? await this.ctx.sessionPersistence.inspect(child.meta.id) : undefined
         if (checkpoint === undefined && localChild !== undefined) {

@@ -114,6 +114,27 @@ describe('native cloud conversation transfer', () => {
     expect(importSessionTail(local, withLocalPermissions(snapshot(remote), initial.events), initial.events.length, sessionPrefixHash(initial.events))).toBe(0)
   })
 
+  it('restores implicit laptop defaults and rejects uncaptured cloud permissions', () => {
+    const local = Session.create(SessionId('implicit-permissions'))
+    message(local, 'A session using deployment defaults')
+    const initial = snapshot(local)
+    const remote = Session.fromRestore(local.id, structuredClone(initial.events), initial.meta, initial.inheritedEventCount)
+    remote.append('sandbox/mode', { mode: 'danger-full-access' })
+    remote.append('approval/policy', { policy: 'never' })
+    expect(() => withLocalPermissions(snapshot(remote), initial.events)).toThrow('not captured')
+    for (const sandbox of ['read-only', 'workspace-write'] as const) {
+      const defaults = { sandbox, approval: 'ask' as const }
+      const target = withLocalPermissions(snapshot(remote), initial.events, defaults)
+      expect(target.events.filter(event => event.type === 'sandbox/mode').at(-1)?.data).toEqual({ mode: sandbox })
+      expect(target.events.filter(event => event.type === 'approval/policy').at(-1)?.data).toEqual({ policy: 'ask' })
+      expect(sessionPrefixHash(withLocalPermissions(snapshot(remote), [], defaults).events)).toBe(sessionPrefixHash(target.events))
+    }
+    const defaults = { sandbox: 'workspace-write' as const, approval: 'ask' as const }
+    const target = withLocalPermissions(snapshot(remote), initial.events, defaults)
+    importSessionTail(local, target, initial.events.length, sessionPrefixHash(initial.events))
+    expect(importSessionTail(local, withLocalPermissions(snapshot(remote), initial.events, defaults), initial.events.length, sessionPrefixHash(initial.events))).toBe(0)
+  })
+
   it('transfers child history and relocates only paths within the selected project', () => {
     const root = Session.create(SessionId('root'), undefined, { version: 0, id: SessionId('root'), createdAt: 1, cwd: '/project', isSeeded: false })
     const child = Session.create(SessionId('child'), undefined, { ...root.header, id: SessionId('child'), parentSession: root.id, cwd: '/project/subdir' })
