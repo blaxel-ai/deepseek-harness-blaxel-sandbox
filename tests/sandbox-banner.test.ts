@@ -39,7 +39,7 @@ describe('sandbox chat identity', () => {
   it('makes unavailable execution explicitly remote and fail-closed', () => {
     expect(sandboxPresentation('failed')).toEqual({
       title: 'Sandbox unavailable',
-      detail: 'This session is not running locally. Reconnect to continue.',
+      detail: 'Reconnect to resume its existing files. Newer local edits will not be uploaded.',
     })
   })
 
@@ -68,8 +68,21 @@ describe('reconnecting a sandbox that may be gone', () => {
     const confirm = vi.fn(() => false)
 
     await expect(reconnectWithConsent('session-1', confirm)).resolves.toBe('cancelled')
-    expect(confirm).toHaveBeenCalledWith(recreateConfirmation())
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ message: recreateConfirmation(), confirmLabel: 'Start fresh sandbox' }))
     expect(api.reconnect).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([true, false])('waits for the in-app modal before acting on consent: %s', async (consent) => {
+    api.reconnect.mockReset().mockRejectedValueOnce(new SandboxMissingError()).mockResolvedValueOnce('recreated')
+    let answer!: (value: boolean) => void
+    const decision = new Promise<boolean>(resolve => { answer = resolve })
+    const confirm = vi.fn(() => decision)
+    const pending = reconnectWithConsent('session-1', confirm)
+    await vi.waitFor(() => { expect(confirm).toHaveBeenCalledOnce() })
+    expect(api.reconnect).toHaveBeenCalledTimes(1)
+    answer(consent)
+    await expect(pending).resolves.toBe(consent ? 'recreated' : 'cancelled')
+    expect(api.reconnect).toHaveBeenCalledTimes(consent ? 2 : 1)
   })
 
   it('recreates from the local worktree once the user agrees, and says what was lost', async () => {

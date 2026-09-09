@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sdk = vi.hoisted(() => ({ get: vi.fn() }))
 
@@ -12,6 +12,8 @@ import { BlaxelSessionRuntime } from '../src/session-runtime/service.js'
 import { BlaxelProcessHandle } from '../src/subprocess/process-handle.js'
 import { BlaxelSubprocessRuntime } from '../src/subprocess/service.js'
 
+beforeEach(() => { sdk.get.mockReset() })
+
 function connectedRuntime(): BlaxelRuntime {
   const runtime = Object.create(BlaxelRuntime.prototype) as BlaxelRuntime
   Object.assign(runtime, {
@@ -22,6 +24,34 @@ function connectedRuntime(): BlaxelRuntime {
 }
 
 describe('a sandbox that disappears while a session is connected', () => {
+  it.each([
+    { code: 404, message: 'Process not found' },
+    new Error('command not found'),
+    new Error('log stream terminated'),
+    new Error('Sandbox request failed with status 404'),
+  ])('does not declare a healthy sandbox deleted after a process error: %s', async error => {
+    const runtime = connectedRuntime()
+    sdk.get.mockResolvedValue({ status: 'DEPLOYED' })
+    expect(await runtime.markUnavailable(error)).toBe(false)
+    expect(runtime.phase).toBe('ready')
+    await expect(runtime.getSandbox()).resolves.toBeDefined()
+  })
+
+  it('preserves the binding when checking a process failure hits a temporary platform error', async () => {
+    const runtime = connectedRuntime()
+    sdk.get.mockRejectedValue({ code: 503, message: 'temporarily unavailable' })
+    expect(await runtime.markUnavailable({ code: 404, message: 'Process not found' })).toBe(false)
+    expect(runtime.phase).toBe('ready')
+  })
+
+  it('confirms a genuinely deleted sandbox with the platform after a tool error', async () => {
+    const runtime = connectedRuntime()
+    sdk.get.mockRejectedValue({ code: 404, error: 'Sandbox not found' })
+    expect(await runtime.markUnavailable(new Error('Sandbox request failed with status 404'))).toBe(true)
+    expect(sdk.get).toHaveBeenCalledWith('dsh-gone')
+    expect(runtime.phase).toBe('failed')
+  })
+
   it('recognises the platform answers that mean gone, not slow', () => {
     expect(sandboxIsGone(new Error('Sandbox request failed with status 404: {"action":"Retry"}'))).toBe(true)
     expect(sandboxIsGone({ code: 404, message: 'Sandbox not found' })).toBe(true)

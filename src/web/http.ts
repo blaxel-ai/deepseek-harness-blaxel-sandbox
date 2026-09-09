@@ -8,7 +8,7 @@ const LOCAL_ORIGIN = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/
 export type AuthorizedAction =
   | 'check' | 'open' | 'close' | 'move' | 'reconnect' | 'divergence' | 'sync-local' | 'configure' | 'workspace' | 'login' | 'logout' | 'test'
   | 'oauth-start' | 'oauth-poll' | 'oauth-complete' | 'install-skills' | 'mcp-login' | 'mcp-logout'
-  | 'model-readiness' | 'model-credential'
+  | 'model-readiness' | 'model-credential' | 'cloud-open' | 'review'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -42,7 +42,7 @@ export function writeJson(res: BlaxelHttpResponse, status: number, body: unknown
   res.end(JSON.stringify(body))
 }
 
-async function readJsonBody(req: BlaxelHttpRequest): Promise<Record<string, unknown>> {
+export async function readJsonBody(req: BlaxelHttpRequest, limit = MAX_BODY_BYTES): Promise<Record<string, unknown>> {
   const body = await new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = []
     let bytes = 0
@@ -50,7 +50,7 @@ async function readJsonBody(req: BlaxelHttpRequest): Promise<Record<string, unkn
     req.on('data', (chunk) => {
       if (failed) return
       bytes += chunk.length
-      if (bytes > MAX_BODY_BYTES) {
+      if (bytes > limit) {
         failed = true
         reject(new Error('Request body is too large'))
       } else {
@@ -156,4 +156,10 @@ export async function readModelCredentialRequest(req: BlaxelHttpRequest): Promis
     throw new Error('A valid model credential is required')
   }
   return { sessionId: sessionIdOf(body), credential: credential.trim() }
+}
+
+export async function readCloudReturnRequest(req: BlaxelHttpRequest): Promise<{ sessionId: string; reviewHash?: string }> {
+  const body = await readJsonBody(req)
+  if (body.reviewHash !== undefined && (typeof body.reviewHash !== 'string' || !/^[a-f0-9]{64}$/.test(body.reviewHash))) throw new Error('The change review is invalid')
+  return { sessionId: sessionIdOf(body), ...(typeof body.reviewHash === 'string' ? { reviewHash: body.reviewHash } : {}) }
 }

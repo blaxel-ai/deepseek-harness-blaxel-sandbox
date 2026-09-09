@@ -126,7 +126,8 @@ async function preserveConflictingPatch(repoRoot: string, patch: DivergencePatch
   const directory = join(stdout.trim(), 'dsh-blaxel')
   await mkdir(directory, { mode: 0o700, recursive: true })
   const stamp = patch.checkedAt.replaceAll(/[^0-9A-Za-z]/g, '').slice(0, 14)
-  const path = join(directory, `sandbox-${stamp}.patch`)
+  const recovery = await mkdtemp(join(directory, `sandbox-${stamp}-`))
+  const path = join(recovery, 'changes.patch')
   await writeFile(path, patch.text, { encoding: 'utf8', mode: 0o600 })
   return path
 }
@@ -149,7 +150,8 @@ export async function applySandboxPatch(repoRoot: string, patch: DivergencePatch
       const kept = await preserveConflictingPatch(workspace.repoRoot, patch)
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}. The sandbox changes were saved to ${kept}; `
-        + `the sandbox is still running. Resolve the local conflict and retry, or merge the saved patch with \`git apply --3way\`.`,
+        + 'the sandbox is still running. Review the saved patch and resolve the conflict before retrying. '
+        + 'If you have already merged every sandbox change locally, retry Move back to local to finish restoring the session.',
       )
     }
     await gitApply(workspace.repoRoot, patchPath, false)

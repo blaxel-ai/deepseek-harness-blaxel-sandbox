@@ -1,5 +1,6 @@
 /** Path identity for one sandbox: where it works, and how host paths map in. */
-import { isAbsolute, posix, relative, sep } from 'node:path'
+import { realpathSync } from 'node:fs'
+import { dirname, isAbsolute, join, posix, relative, sep } from 'node:path'
 
 export interface RuntimePaths {
   /** Remote working directory shared by every mounted capability. */
@@ -14,7 +15,23 @@ export interface RuntimePaths {
 
 export function mapWorkspacePath(sourceRoot: string | undefined, workspaceRoot: string, path: string): string {
   if (sourceRoot === undefined || !isAbsolute(path)) return path
-  const suffix = relative(sourceRoot, path)
+  let suffix = relative(sourceRoot, path)
+  // DSH may retain a logical host path such as /var/... or a symlinked
+  // checkout, while the snapshot records its canonical root. Resolve the
+  // nearest existing ancestor so newly created files map the same way.
+  if (suffix === '..' || suffix.startsWith(`..${sep}`) || isAbsolute(suffix)) {
+    let ancestor = path
+    while (true) {
+      try {
+        suffix = relative(sourceRoot, join(realpathSync(ancestor), relative(ancestor, path)))
+        break
+      } catch {
+        const parent = dirname(ancestor)
+        if (parent === ancestor) break
+        ancestor = parent
+      }
+    }
+  }
   if (suffix === '..' || suffix.startsWith(`..${sep}`) || isAbsolute(suffix)) return path
   return suffix === '' ? workspaceRoot : posix.join(workspaceRoot, ...suffix.split(sep))
 }

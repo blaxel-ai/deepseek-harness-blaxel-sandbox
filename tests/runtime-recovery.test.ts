@@ -27,6 +27,7 @@ vi.mock('@blaxel/core', async (importOriginal) => {
 
 import { SandboxBindingStore } from '../src/session-runtime/binding-store.js'
 import { BlaxelSessionRuntime, sandboxRecoveryError } from '../src/session-runtime/service.js'
+import { SandboxGoneError } from '../src/runtime/service.js'
 
 let directory: string
 const original = {
@@ -60,8 +61,16 @@ afterEach(() => {
 })
 
 describe('sandbox runtime recovery', () => {
-  it('turns SDK object failures into a useful missing-sandbox result', () => {
-    expect(sandboxRecoveryError({ code: 404, error: 'Sandbox not found' }, 'dsh-private-id')).toEqual({
+  it.each([
+    'Could not restore the divergence baseline: Process not found',
+    'Could not restore the divergence baseline: command not found',
+    'Could not restore the divergence baseline: log stream terminated',
+  ])('does not offer destructive recreation for a recoverable setup error: %s', detail => {
+    expect(sandboxRecoveryError(new Error(detail), 'dsh-private-id')).toEqual({ missing: false, message: detail })
+  })
+
+  it('turns a confirmed sandbox lookup failure into a useful missing-sandbox result', () => {
+    expect(sandboxRecoveryError(new SandboxGoneError(), 'dsh-private-id')).toEqual({
       missing: true,
       message: 'The sandbox no longer exists.',
     })

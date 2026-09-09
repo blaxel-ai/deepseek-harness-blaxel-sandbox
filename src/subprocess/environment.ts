@@ -32,14 +32,16 @@ export function argvArgs(argv: readonly string[]): string {
   return argv.map(shellQuote).join(' ')
 }
 
-export function argvCommand(argv: readonly string[], env: Record<string, string>, cwd: string, fifo?: string): string {
+export function argvCommand(argv: readonly string[], env: Record<string, string>, cwd: string, graceMs: number, fifo?: string): string {
   const input = fifo === undefined ? ' </dev/null' : ` < ${shellQuote(fifo)}`
-  return [
-    `cd -- ${shellQuote(cwd)} &&`,
+  const script = [
+    `cd -- ${shellQuote(cwd)} || exit $?;`,
     `child='';`,
-    `trap 'test -n "$child" && kill -TERM -"$child" 2>/dev/null; wait "$child" 2>/dev/null; exit 143' TERM INT HUP;`,
+    `cleanup() { if test -n "$child" && kill -TERM -- -"$child" 2>/dev/null; then sleep ${String(graceMs / 1000)}; kill -KILL -- -"$child" 2>/dev/null; fi; wait "$child" 2>/dev/null; };`,
+    `trap 'cleanup; exit 143' TERM INT HUP;`,
     `setsid env -i ${envArgs(env)} ${argvArgs(argv)}${input} &`,
     `child=$!;`,
-    `wait "$child"`,
+    `wait "$child"; result=$?; cleanup; exit "$result"`,
   ].join(' ')
+  return `exec /bin/bash -c ${shellQuote(script)}`
 }

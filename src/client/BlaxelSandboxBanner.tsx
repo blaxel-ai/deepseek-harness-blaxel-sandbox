@@ -1,6 +1,9 @@
+import { launching } from './launch-steps.js'
+import { BlaxelChangeReview } from './BlaxelChangeReview.js'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { closeBlaxel, inspectBlaxelChanges, moveBlaxelChangesLocal, reconnectBlaxelSandbox, SandboxMissingError, type ReconnectOutcome } from './api.js'
+import { openCloudSession, reviewCloudChanges, closeBlaxel, inspectBlaxelChanges, moveBlaxelChangesLocal, reconnectBlaxelSandbox, SandboxMissingError, type ReconnectOutcome } from './api.js'
 import { SandboxIcon } from './BlaxelSidebarMarker.js'
+import { useBlaxelConfirmation, type ConfirmBlaxelAction } from './BlaxelConfirmDialog.js'
 import { refreshBlaxelStatus, useBlaxelStatus } from './useBlaxelStatus.js'
 
 const CHAT_ATTRIBUTE = 'data-blaxel-sandbox-chat'
@@ -9,7 +12,7 @@ export const SESSION_PANE_SELECTOR = '[data-slot="conversation"]'
 export const SANDBOX_SURFACE_BACKGROUND = 'var(--dsw-alias-bg-base, #151517)'
 
 type SandboxState = 'creating' | 'restoring' | 'ready' | 'failed'
-type BannerAction = 'reconnect' | 'local' | 'discard'
+type BannerAction = 'reconnect' | 'local' | 'discard' | 'open'
 
 export function recreateConfirmation(): string {
   return 'The Blaxel sandbox for this session no longer exists, so changes made only inside it cannot be recovered. '
@@ -24,19 +27,19 @@ export function continueLocallyConfirmation(): string {
 export function reconnectNotice(outcome: ReconnectOutcome): string {
   return outcome === 'recreated'
     ? 'A fresh sandbox was created from your local files. Changes from the previous sandbox were not recovered.'
-    : 'Sandbox reconnected.'
+    : 'Sandbox reconnected with its existing files. Newer local edits were not uploaded.'
 }
 
 /**
  * Reconnects, and only replaces a sandbox that is confirmed gone after the user
  * agrees. `cancelled` means nothing changed.
  */
-export async function reconnectWithConsent(sessionId: string, confirm: (message: string) => boolean = message => window.confirm(message)): Promise<ReconnectOutcome | 'cancelled'> {
+export async function reconnectWithConsent(sessionId: string, confirm: ConfirmBlaxelAction): Promise<ReconnectOutcome | 'cancelled'> {
   try {
     return await reconnectBlaxelSandbox(sessionId)
   } catch (error) {
     if (!(error instanceof SandboxMissingError)) throw error
-    if (!confirm(recreateConfirmation())) return 'cancelled'
+    if (!await confirm({ title: 'Start a fresh sandbox?', message: recreateConfirmation(), confirmLabel: 'Start fresh sandbox', danger: true })) return 'cancelled'
     return await reconnectBlaxelSandbox(sessionId, { recreate: true })
   }
 }
@@ -131,15 +134,34 @@ export interface SandboxPresentation {
 }
 
 export function sandboxPresentation(state: SandboxState): SandboxPresentation {
-  if (state === 'ready') return { title: 'Running on Blaxel', detail: 'Tools run remotely; this session is not local.' }
-  if (state === 'failed') return { title: 'Sandbox unavailable', detail: 'This session is not running locally. Reconnect to continue.' }
+  if (state === 'ready') return { title: 'Running on Blaxel', detail: 'Tools use sandbox files. Local edits stay local until you move back, merge, and reopen.' }
+  if (state === 'failed') return { title: 'Sandbox unavailable', detail: 'Reconnect to resume its existing files. Newer local edits will not be uploaded.' }
   return { title: 'Connecting to Blaxel', detail: 'Local tools stay off while the remote workspace starts.' }
 }
 
 export function moveLocalConfirmation(changed: number): string {
-  if (changed === 0) return 'Move this session back to local? The sandbox will stop and the session will continue in its original worktree.'
+  if (changed === 0) return 'Move this session back to local? No sandbox file changes were found. Your local edits will be kept. The sandbox will stop and the session will continue in its original worktree.'
   const files = changed === 1 ? '1 changed file' : `${String(changed)} changed files`
-  return `Move this session back to local? ${files} will be applied to the original worktree, then the sandbox will stop. If local files conflict, nothing will change.`
+  return `Move this session back to local? ${files} will be applied to the original worktree, keeping compatible local edits, then the sandbox will stop. If any file conflicts, neither copy will change and the sandbox will stay available.`
+}
+
+/** Every return surface uses the same reviewed transaction. */
+export async function reviewAndReturn(sessionId: string, cloud: boolean, confirm: ConfirmBlaxelAction): Promise<boolean> {
+  if (cloud) {
+    const review = await reviewCloudChanges(sessionId)
+    if (!await confirm({ title: 'Bring your session back', message: 'Review the changes below. Your conversation will return with them. Compatible local edits are preserved, and the sandbox stops after a successful transfer.', confirmLabel: review.divergence.changed === 0 ? 'Move session back' : 'Apply changes and move back', details: <BlaxelChangeReview review={review} /> })) return false
+    await moveBlaxelChangesLocal(sessionId, review.reviewHash)
+    // Recreate native browser image handles and select the returned conversation,
+    // including when return started from another session's Settings panel.
+    const local = new URL('/', window.location.origin)
+    local.searchParams.set('blaxel-local', sessionId)
+    window.location.assign(local.href)
+  } else {
+    const divergence = await inspectBlaxelChanges(sessionId)
+    if (!await confirm({ title: 'Move back to local?', message: moveLocalConfirmation(divergence.changed), confirmLabel: 'Move back to local' })) return false
+    await moveBlaxelChangesLocal(sessionId)
+  }
+  return true
 }
 
 export function sandboxConsoleUrl(workspace: string, sandbox: string, environment: 'production' | 'development'): string {
@@ -154,6 +176,7 @@ function sessionPane(element: HTMLElement): HTMLElement | undefined {
 
 /** Sandbox identity, reconnect action, and a visual treatment on the native chat pane. */
 export function BlaxelSandboxBanner(props: BlaxelSandboxBannerProps): ReactNode {
+  const confirmation = useBlaxelConfirmation()
   const status = useBlaxelStatus()
   const item = status?.sandboxes.find(candidate => candidate.sessionId === props.sessionId)
   const element = useRef<HTMLElement | null>(null)
@@ -179,9 +202,24 @@ export function BlaxelSandboxBanner(props: BlaxelSandboxBannerProps): ReactNode 
     return () => props.setUnavailableBlock(props.sessionId, false)
   }, [item?.state, props.sessionId, statusLoaded])
 
-  if (item === undefined) return null
+  const autoReview = useRef(false)
+  useEffect(() => {
+    if (item?.cloud === undefined || autoReview.current) return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('blaxel-return') !== props.sessionId) return
+    autoReview.current = true
+    url.searchParams.delete('blaxel-return')
+    window.history.replaceState(null, '', url)
+    void moveLocal()
+  }, [item?.cloud, props.sessionId])
+
+  if (item === undefined) return confirmation.dialog
   const failed = item.state === 'failed'
-  const presentation = sandboxPresentation(item.state)
+  const preparing = item.cloud?.phase === 'preparing' && launching(status)
+  const presentation = item.cloud === undefined ? sandboxPresentation(item.state) : {
+    title: item.cloud.phase === 'preparing' ? 'Preparing your cloud session' : item.cloud.phase === 'returning' ? 'Finishing the return to local' : 'This conversation is on Blaxel',
+    detail: item.cloud.phase === 'preparing' ? 'Installing the agent runtime and restoring your conversation.' : 'Open the cloud session to continue, or review its changes and bring everything back.',
+  }
   const tone = failed
     ? 'var(--dsw-alias-state-warn-label, #f59e0b)'
     : 'var(--dsw-alias-state-business-primary, #6da7ff)'
@@ -191,7 +229,7 @@ export function BlaxelSandboxBanner(props: BlaxelSandboxBannerProps): ReactNode 
     setActionError(undefined)
     setNotice(undefined)
     try {
-      const outcome = await reconnectWithConsent(item.sessionId)
+      const outcome = await reconnectWithConsent(item.sessionId, confirmation.confirm)
       if (outcome === 'cancelled') return
       if (outcome === 'recreated') setNotice(reconnectNotice(outcome))
       refreshBlaxelStatus()
@@ -203,7 +241,7 @@ export function BlaxelSandboxBanner(props: BlaxelSandboxBannerProps): ReactNode 
   }
 
   const continueLocally = async (): Promise<void> => {
-    if (!window.confirm(continueLocallyConfirmation())) return
+    if (!await confirmation.confirm({ title: 'Continue locally?', message: continueLocallyConfirmation(), confirmLabel: 'Continue locally', danger: true })) return
     setBusy('discard')
     setActionError(undefined)
     setNotice(undefined)
@@ -221,15 +259,21 @@ export function BlaxelSandboxBanner(props: BlaxelSandboxBannerProps): ReactNode 
     setBusy('local')
     setActionError(undefined)
     try {
-      const divergence = await inspectBlaxelChanges(item.sessionId)
-      if (!window.confirm(moveLocalConfirmation(divergence.changed))) return
-      await moveBlaxelChangesLocal(item.sessionId)
+      if (!await reviewAndReturn(item.sessionId, item.cloud !== undefined, confirmation.confirm)) return
       refreshBlaxelStatus()
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'The session could not be moved back to local')
     } finally {
       setBusy(undefined)
     }
+  }
+
+  const openCloud = async (): Promise<void> => {
+    setBusy('open')
+    setActionError(undefined)
+    try { window.location.assign(await openCloudSession(item.sessionId)) }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'Could not open the cloud session') }
+    finally { setBusy(undefined) }
   }
 
   const identity = <>
@@ -250,12 +294,14 @@ export function BlaxelSandboxBanner(props: BlaxelSandboxBannerProps): ReactNode 
     {actionError === undefined ? null : <div role="alert" style={{ color: tone, overflowWrap: 'anywhere', paddingLeft: 24 }}>{actionError}</div>}
   </> : <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
     {item.state === 'ready' ? <a aria-label="Open this sandbox in Blaxel" data-blaxel-sandbox-link="true" href={sandboxConsoleUrl(item.workspace, item.sandbox.name, item.environment)} rel="noreferrer" style={{ alignItems: 'flex-start', color: 'inherit', display: 'flex', flex: '1 1 360px', gap: 8, minWidth: 0, textDecoration: 'none' }} target="_blank" title="Open this sandbox in Blaxel">{identity}</a> : identity}
-    {item.state === 'ready' ? <button data-blaxel-sandbox-action="true" disabled={busy !== undefined || item.live.processes > 0} style={action} title={item.live.processes > 0 ? 'Wait for active sandbox tools to finish' : undefined} type="button" onClick={() => void moveLocal()}>{busy === 'local' ? 'Checking changes…' : 'Move back to local'}</button> : null}
+    {item.cloud !== undefined && <button type="button" style={action} disabled={busy !== undefined || preparing} onClick={() => { void openCloud() }}>{preparing ? 'Preparing…' : busy === 'open' ? 'Opening…' : item.cloud.phase === 'preparing' ? 'Retry cloud setup' : 'Open cloud session'}</button>}
+    {item.state === 'ready' ? <button data-blaxel-sandbox-action="true" disabled={busy !== undefined || preparing || item.live.processes > 0} style={action} title={item.live.processes > 0 ? 'Wait for active sandbox tools to finish' : undefined} type="button" onClick={() => void moveLocal()}>{busy === 'local' ? 'Checking changes…' : 'Move back to local'}</button> : null}
     {actionError === undefined ? null : <div role="alert" style={{ color: tone, flexBasis: '100%', overflowWrap: 'anywhere' }}>{actionError}</div>}
     {notice === undefined ? null : <div role="status" style={{ color: 'var(--dsw-alias-label-secondary, #aaa)', flexBasis: '100%', overflowWrap: 'anywhere' }}>{notice}</div>}
   </div>
 
   return <>
+    {confirmation.dialog}
     <style>{SANDBOX_CHAT_CSS}</style>
     <div data-blaxel-sandbox-surface="true" ref={node => { element.current = node }} style={surface}>
       <div aria-live="polite" data-state={item.state} style={{ ...banner, ...(failed ? failedBanner : {}) }}>{content}</div>

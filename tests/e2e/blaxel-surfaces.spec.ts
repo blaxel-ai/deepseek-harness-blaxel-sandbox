@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
 async function dismissFirstRunDialogs(page: Page): Promise<void> {
   for (let round = 0; round < 3; round += 1) {
     const dialog = page.getByRole('dialog')
-    if (await dialog.count() === 0) return
+    if (!await dialog.waitFor({ state: 'visible', timeout: 2000 }).then(() => true, () => false)) return
     const dismiss = dialog.getByRole('button', { name: /^(Continue|Configure later)$/ })
     if (await dismiss.count() === 0) return
     await dismiss.first().click()

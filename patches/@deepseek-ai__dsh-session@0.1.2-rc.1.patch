@@ -1,0 +1,48 @@
+diff --git a/lib/index.js b/lib/index.js
+index 46fd18ca5cbcc4d5436bd31153ea54418f8c0867..a5e3148dd9646526624a60e13fa972d9596ac264 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1411,8 +1411,6 @@ var Session = class Session {
+ 		assertSupportedRequestHeader(type, dataSnapshot, `session event "${type}"`);
+ 		const surfaceMetadataSnapshot = snapshotJsonValue(surfaceMetadata);
+ 		if (surfaceMetadataSnapshot === void 0) throw new Error(`session event "${type}" carries non-JSON-serializable surface metadata`);
+-		const entry = attachments.get(this);
+-		if (entry?.appending) throw new Error("session append cannot reenter while another append is being published");
+ 		const event = deepFreeze({
+ 			type,
+ 			seq: SessionSeq(this.log.length),
+@@ -1420,6 +1418,20 @@ var Session = class Session {
+ 			data: dataSnapshot,
+ 			...surfaceMetadataSnapshot
+ 		});
++		return this.commitEvent(event);
++	}
++	/** Import one contiguous native event without replacing its recorded timestamp. */
++	appendImported(source) {
++		const event = snapshotJsonValue(source);
++		if (event === void 0) throw new Error("imported session event must be losslessly JSON-serializable");
++		assertSessionEventEnvelope(event, this.log.length);
++		if (event.seq !== this.log.length) throw new Error("imported session event must continue the existing sequence");
++		assertSupportedRequestHeader(event.type, event.data, `session event at seq ${event.seq}`);
++		return this.commitEvent(deepFreeze(event));
++	}
++	commitEvent(event) {
++		const entry = attachments.get(this);
++		if (entry?.appending) throw new Error("session append cannot reenter while another append is being published");
+ 		this.surfaceManager.validateNext(event);
+ 		if (entry !== void 0) entry.appending = true;
+ 		try {
+diff --git a/lib/types/index.d.ts b/lib/types/index.d.ts
+index 9d08c9d0e92228ccdfb201b99e94d6580faa122f..482a6883ec2798b95a43b201cbc5ec0510a23739 100644
+--- a/lib/types/index.d.ts
++++ b/lib/types/index.d.ts
+@@ -231,6 +231,9 @@ export declare class Session {
+      *   rejects before the log changes.
+      */
+     append<T extends SessionEventType>(type: T, data: SessionEventMap[T], ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent] : []): SessionEvent<T>;
++    /** Import an owned log event with its original sequence, time, payload and surface metadata. */
++    appendImported<T extends SessionEvent>(event: T): T;
++    private commitEvent;
+     /** Cached fold of the request-header events — see {@link requestHeader}. */
+     private headerFold;
+     /** Log position (events consumed) the header fold has reached. */

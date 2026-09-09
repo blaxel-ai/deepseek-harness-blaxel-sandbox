@@ -1,3 +1,4 @@
+import { prepareDraftHandoff, useSessionDraft } from './useSessionDraft.js'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { ModelReadiness } from '../shared/model-readiness.js'
 import { modelReadinessMessage } from '../shared/model-readiness.js'
@@ -5,13 +6,15 @@ import {
   checkWorkspace, getModelReadiness, moveSession, openWorkspace, saveModelCredential, type LaunchProgress,
 } from './api.js'
 import { BlaxelLaunchPanel } from './BlaxelLaunchPanel.js'
+import { useBlaxelConfirmation } from './BlaxelConfirmDialog.js'
 import { BlaxelModelReadinessPanel } from './BlaxelModelReadinessPanel.js'
 import { reconnectWithConsent } from './BlaxelSandboxBanner.js'
 import { SandboxIcon } from './BlaxelSidebarMarker.js'
-import type { SessionSlotProps } from './context.js'
+import type { ClientConversation, SessionSlotProps } from './context.js'
 import { refreshBlaxelStatus, useBlaxelStatus } from './useBlaxelStatus.js'
 
 export interface BlaxelComposerActionProps extends SessionSlotProps {
+  conversation: ClientConversation
   openSession: (sessionId: string) => void
   setComposerBlock: (sessionId: string, reason?: string) => void
 }
@@ -44,6 +47,7 @@ const actionButton: CSSProperties = {
 }
 
 export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNode {
+  const confirmation = useBlaxelConfirmation()
   const { sessionId } = props
   const running = props.useSession(snapshot => snapshot.running)
   const summary = props.useSessions(state => state.byId[sessionId])
@@ -56,6 +60,7 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
   const [repairOpen, setRepairOpen] = useState(false)
   const sandbox = status?.sandboxes.find(item => item.sessionId === sessionId)
   const sandboxed = sandbox !== undefined
+  const draftError = useSessionDraft(props, props.conversation, status !== undefined && !sandboxed)
 
   useEffect(() => {
     let current = true
@@ -95,12 +100,12 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
   }, [sessionId, sandboxed])
 
   useEffect(() => {
-    const block = sandboxed && readiness !== undefined && readiness.kind !== 'ready'
+    const block = busy ? 'Moving this conversation. Wait for the cloud session before editing its draft.' : sandbox?.cloud !== undefined ? 'This conversation is on Blaxel. Open the cloud session to continue, or move it back to local.' : sandboxed && readiness !== undefined && readiness.kind !== 'ready'
       ? modelReadinessMessage(readiness)
       : undefined
     props.setComposerBlock(sessionId, block)
     return () => { props.setComposerBlock(sessionId) }
-  }, [sessionId, props.setComposerBlock, readiness, sandboxed])
+  }, [sessionId, props.setComposerBlock, readiness, sandboxed, sandbox?.cloud, busy])
 
   const performLaunch = async (): Promise<void> => {
     if (summary?.cwd === undefined) return
@@ -110,11 +115,13 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
     setPending({ kind, step: 'inspecting', startedAt: now, updatedAt: now })
     refreshBlaxelStatus()
     try {
+      const finishDraft = await prepareDraftHandoff(sessionId)
       const result = summary.blank
         ? await openWorkspace(summary.cwd, sessionId, summary.displayTitle)
         : await moveSession(summary.cwd, sessionId, summary.displayTitle)
       refreshBlaxelStatus()
       setPending(undefined)
+      if (result.url !== undefined) { await finishDraft(); window.location.assign(result.url); return }
       if (result.sessionId !== sessionId) props.openSession(result.sessionId)
     } catch (error) {
       const next = await getModelReadiness(sessionId).catch(() => undefined)
@@ -130,7 +137,7 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
   }
 
   const launch = async (): Promise<void> => {
-    if (busy || !eligible || summary?.cwd === undefined || running) return
+    if (busy || !eligible || summary?.cwd === undefined) return
     setBusy(true)
     setReason(undefined)
     try {
@@ -206,7 +213,7 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
       setBusy(true)
       setReason(undefined)
       try {
-        const outcome = await reconnectWithConsent(sessionId)
+        const outcome = await reconnectWithConsent(sessionId, confirmation.confirm)
         if (outcome !== 'cancelled') refreshBlaxelStatus()
       } catch (error) {
         setReason(error instanceof Error ? error.message : String(error))
@@ -220,6 +227,8 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
         {busy ? 'Checking…' : readiness.kind === 'credential-missing' ? `Connect ${readiness.providerName}` : 'Fix model'}
       </button>
     return <>
+      {draftError !== undefined && <span role="status">{draftError}</span>}
+    {confirmation.dialog}
       {panel}
       {repair}
       {model}
@@ -245,14 +254,16 @@ export function BlaxelComposerAction(props: BlaxelComposerActionProps): ReactNod
     </>
   }
 
-  const disabled = !eligible || busy || running
+  const disabled = !eligible || busy
   const title = running
-    ? 'Wait for the current turn to finish before creating a sandbox session'
+    ? 'Move after the current tool finishes, then continue the task on Blaxel'
     : reason ?? (summary?.blank
-      ? 'Open this Git repository in a Blaxel sandbox'
-      : 'Move this session to a Blaxel sandbox')
+      ? 'Create a new Blaxel sandbox from your current local files'
+      : 'Move this session to a new Blaxel sandbox from your current local files')
 
   return <>
+    {draftError !== undefined && <span role="status">{draftError}</span>}
+    {confirmation.dialog}
     {panel}
     {repair}
     <button

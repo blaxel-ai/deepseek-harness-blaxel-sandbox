@@ -17,6 +17,7 @@ const profileEntries: EntryOptions[] = [
   { id: 'pwsh-sandbox', name: '@deepseek-ai/dsh-pwsh-sandbox' },
   { id: 'approval', name: '@deepseek-ai/dsh-user-approval' },
   { id: 'permission', name: '@deepseek-ai/dsh-permission-presets' },
+  { id: 'typert-gateway', name: '@deepseek-ai/dsh-api-gateway' },
   {
     id: 'session-persistence-jsonl',
     name: '@deepseek-ai/dsh-session-persistence-jsonl',
@@ -102,14 +103,22 @@ describe('installable bundle', () => {
 
   it('keeps every router active because selection happens per session', async () => {
     const { entries } = await patchProfile()
-    const blaxelRows = entries.filter(entry => entry.name.startsWith('@blaxel/'))
+    const blaxelRows = entries.filter(entry => entry.name.startsWith('@blaxel/') && entry.id !== 'typert-gateway')
     expect(blaxelRows.map(entry => entry.id)).toEqual([
       'blaxel-sessions',
       'blaxel-subprocess-router',
       'blaxel-filesystem-router',
       'blaxel-client',
       'blaxel-web',
+      'blaxel-cloud-gateway',
+      'blaxel-cloud',
     ])
     for (const entry of blaxelRows) expect(disabledWith(entry, {}), entry.id).toBe(false)
+  })
+
+  it('ships a cloud deployment that parses as plain YAML and retains authentication', async () => {
+    const patches = yaml.load(await readFile(resolve(root, 'cloud.patch.yml'), 'utf8')) as Array<{ id?: string; config?: Record<string, unknown> }>
+    expect(patches.find(row => row.id === 'web-runtime')?.config?.trustedHosts).toEqual(['__DSH_PREVIEW_HOST__'])
+    expect(patches.find(row => row.id === 'web-runtime')?.config?.printUrl).toBe(false)
   })
 })

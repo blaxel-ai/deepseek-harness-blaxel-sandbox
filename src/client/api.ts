@@ -7,6 +7,7 @@ export type LaunchStep =
   | 'archiving'
   | 'session'
   | 'starting'
+  | 'host'
   | 'ready'
 
 export interface LaunchProgress {
@@ -117,6 +118,7 @@ export interface SandboxSessionStatus {
   provenance?: SnapshotProvenance
   live: { processes: number }
   error?: string
+  cloud?: { phase: 'preparing' | 'remote' | 'returning' }
 }
 
 export type Status = LocalStatus
@@ -129,6 +131,7 @@ export interface WorkspaceCheck {
 export interface OpenWorkspaceResult {
   ok: true
   sessionId: string
+  url?: string
 }
 
 export type MoveSessionResult = OpenWorkspaceResult
@@ -145,7 +148,7 @@ export interface DivergenceSummary {
 type Action =
   | 'check' | 'open' | 'close' | 'move' | 'reconnect' | 'divergence' | 'sync-local' | 'configure' | 'workspace' | 'login' | 'logout' | 'test'
   | 'oauth-start' | 'oauth-poll' | 'oauth-complete' | 'install-skills' | 'mcp-login' | 'mcp-logout'
-  | 'model-readiness' | 'model-credential'
+  | 'model-readiness' | 'model-credential' | 'cloud-open' | 'review' | 'draft'
 type ApiSuccess = { ok: true }
 
 /** Turns the bridge's stable error codes into sentences; real messages pass through unchanged. */
@@ -220,10 +223,11 @@ export class SandboxMissingError extends Error {
 
 export async function reconnectBlaxelSandbox(sessionId: string, options: { recreate?: boolean } = {}): Promise<ReconnectOutcome> {
   try {
-    const result = await call<ApiSuccess & { outcome: ReconnectOutcome }>('reconnect', 'reconnect', {
+    const result = await call<ApiSuccess & { outcome: ReconnectOutcome; url?: string }>('reconnect', 'reconnect', {
       sessionId,
       ...(options.recreate === true ? { recreate: true } : {}),
     })
+    if (result.url !== undefined) window.location.assign(result.url)
     return result.outcome
   } catch (error) {
     if (error instanceof Error && error.message === 'sandbox-missing') throw new SandboxMissingError()
@@ -235,8 +239,8 @@ export async function inspectBlaxelChanges(sessionId: string): Promise<Divergenc
   return (await call<ApiSuccess & { divergence: DivergenceSummary }>('divergence', 'divergence', { sessionId })).divergence
 }
 
-export async function moveBlaxelChangesLocal(sessionId: string): Promise<{ repoRoot: string; divergence: DivergenceSummary }> {
-  const result = await call<ApiSuccess & { repoRoot: string; divergence: DivergenceSummary }>('sync-local', 'sync-local', { sessionId })
+export async function moveBlaxelChangesLocal(sessionId: string, reviewHash?: string): Promise<{ repoRoot: string; divergence: DivergenceSummary }> {
+  const result = await call<ApiSuccess & { repoRoot: string; divergence: DivergenceSummary }>('sync-local', 'sync-local', { sessionId, ...(reviewHash === undefined ? {} : { reviewHash }) })
   return { repoRoot: result.repoRoot, divergence: result.divergence }
 }
 
@@ -282,4 +286,20 @@ export async function connectBlaxelMcp(): Promise<BlaxelCapabilities> {
 
 export async function disconnectBlaxelMcp(): Promise<BlaxelCapabilities> {
   return (await call<ApiSuccess & { capabilities: BlaxelCapabilities }>('mcp-logout', 'mcp-logout', {})).capabilities
+}
+
+export type RuntimeMode = { ok: true; mode: 'local' } | { ok: true; mode: 'cloud'; sessionId: string; localOrigin: string; sandboxName: string; workspace: string; running: boolean; held: boolean }
+export async function getRuntimeMode(): Promise<RuntimeMode> { return await call<RuntimeMode>('mode') }
+export async function openCloudSession(sessionId: string): Promise<string> {
+  return (await call<ApiSuccess & { url: string }>('cloud-open', 'cloud-open', { sessionId })).url
+}
+export interface ChangeReview { ok: true; divergence: DivergenceSummary; patch: string; reviewHash: string }
+export async function reviewCloudChanges(sessionId: string): Promise<ChangeReview> {
+  return await call<ChangeReview>('review', 'review', { sessionId })
+}
+
+export async function getCloudAccessLink(): Promise<string> { return (await call<ApiSuccess & { url: string }>('access-link')).url }
+
+export async function sessionDraft(sessionId: string, draft?: import('../cloud/draft.js').SessionDraft, revision?: string): Promise<import('../cloud/draft.js').SavedDraft | undefined> {
+  return (await call<ApiSuccess & { saved?: import('../cloud/draft.js').SavedDraft }>('draft', 'draft', { sessionId, ...(draft === undefined ? {} : { draft, revision }) })).saved
 }

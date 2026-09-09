@@ -4,15 +4,15 @@ Use [README.md](README.md) for the shortest installation path. This guide explai
 
 ## How it works
 
-The plugin keeps DeepSeek Harness (DSH) on your computer and changes where tools execute for one session.
+This branch implements cloud session handoff. The published tools-only plugin still requires the original DSH host to run; do not advertise laptop-offline continuation for that release.
 
 | Component | Location | Responsibility |
 | --- | --- | --- |
-| DSH Web | Your computer | Interface, conversations, session titles, model requests, model credentials, and Blaxel authentication |
-| Plugin host | Your computer | Workspace snapshots, session bindings, settings, recovery, and safe change transfer |
-| Blaxel sandbox | Blaxel | Filesystem, Bash, and terminal operations under `/workspace` |
+| Original DSH host | Your computer | Local work, Blaxel credentials, snapshots, ownership and safe return |
+| Cloud DSH host | Private Blaxel sandbox | Conversation, model requests, selected model API key, tools and project files |
+| Browser | Your computer or another device | Authenticated access to the current execution owner |
 
-Local and sandbox sessions remain ordinary DSH sessions in the same sidebar. The active native session ID selects the local or Blaxel execution providers. The plugin does not start a second DSH process or open a separate DSH page.
+The same session identity and history move between hosts. Once the cloud page is ready, the laptop can go offline. Reopen from the original computer to renew private access, or use **Copy private link** for another device. Private links grant access until their expiry; sandbox lifetime is independent and defaults to 24 hours.
 
 ## Requirements
 
@@ -31,8 +31,10 @@ dsh plugin --profile web add \
   --allow-build=@deepseek-ai/dsh-subprocess-local \
   --allow-build=koffi \
   --allow-build=node-pty \
+  --allow-build=@google/genai \
+  --allow-build=protobufjs \
   @blaxel/dsh-sandbox
-dsh web
+npx --package @blaxel/dsh-sandbox dsh-blaxel web
 ```
 
 To use the repository before publication:
@@ -43,8 +45,10 @@ cd deepseek-harness-blaxel-sandbox
 pnpm install
 pnpm build
 dsh plugin --profile web link "$PWD"
-dsh web
+node dist/cli.js web
 ```
+
+Use the package's `dsh-blaxel` launcher for cloud handoff. It caches a pinned DSH runtime with a small native history-import extension; the first launch downloads dependencies. Your profile and globally installed DSH remain separate from this runtime. Preserve `DSH_HOME` when using a custom profile.
 
 Open DSH Settings and confirm that the Blaxel section appears.
 
@@ -75,12 +79,14 @@ Both capabilities stay on the DSH host. The settings panel reports Up to date or
 
 Settings loads choices from the active Blaxel workspace. Only images, memory sizes, regions, and maximum lifetimes available to that account are selectable.
 
+Memory is shown directly. Expand **Advanced settings** to change the sandbox image, region, or maximum lifetime. The tested default remains TypeScript App; Base Image is a separate image choice.
+
 | Setting | Default | Behavior |
 | --- | --- | --- |
 | Sandbox image | `blaxel/ts-app:latest` | Debian and glibc image prepared for common TypeScript workloads |
 | Memory | `4096` MB | Filtered by the workspace memory limit |
 | Region | Automatic | Filtered by workspace availability |
-| Maximum lifetime | Platform default | Filtered by the workspace TTL limit |
+| Maximum lifetime | 24h for cloud sessions | Filtered by the workspace TTL limit |
 
 Saved defaults affect new sandboxes. Existing sessions keep their current resources.
 
@@ -99,9 +105,9 @@ Open a Git-backed workspace in DSH and create or select a session.
 
 - An empty session shows Open on Blaxel
 - A session with conversation history shows Move to Blaxel
-- A running turn must finish before the session can move
+- An active task checkpoints after its current tool finishes and continues in the cloud
 
-Before creating a sandbox, the plugin verifies the selected model route and its host credential. If the credential is missing, complete the provider-specific setup card in the composer. The credential is written to the DSH host store and is not copied into the sandbox.
+Before creating a sandbox, the plugin requires a portable API-key model using the native pi-ai or DeepSeek provider. Local OAuth grants and laptop-only endpoints are rejected before ownership changes. Only the selected model key is sent to the cloud host; Blaxel credentials stay local. Configuration checks do not prove provider quota or key validity.
 
 The launch action:
 
@@ -110,41 +116,61 @@ The launch action:
 3. Excludes `.git`, `.dsh-blaxel`, Git-ignored paths, common credential files, and private keys.
 4. Creates a bounded archive and restores it under `/workspace`.
 5. Creates an immutable baseline for later change comparison.
-6. Binds the existing DSH session ID to remote filesystem and subprocess providers.
+6. Restores native session history and referenced assets in a full DSH host inside the private sandbox.
+7. Opens the private cloud session automatically, including browser authentication.
 
-The same conversation, automatic title, sidebar row, and selected page remain in place.
+The cloud page opens the same conversation and title. The original local view is held read-only until return.
 
 ## Identify a sandbox session
 
 Sandbox sessions have an indented container marker in the normal sidebar. The active chat also has a subtle edge glow and a Running on Blaxel strip above the composer. Next to the send button, a chip states the connection: **On Blaxel** while connected, **Connecting…** while the sandbox starts, and **Reconnect Blaxel** when the sandbox is unavailable. Selecting that chip reconnects in place; a local session shows **Move to Blaxel** in the same spot.
 
-Select the strip to open the exact sandbox in Blaxel Console. The DSH session remains on the current page.
+Select the console link to inspect the sandbox, or **Open cloud session** to continue its conversation.
 
 ## Move changes back to local
 
-Open Settings > Blaxel and find the running sandbox. Select Return to local.
+On the original computer with DSH running, select **Move back to local** in the cloud banner or local Settings > Blaxel. The return landing handles the browser’s strict local authentication cookie automatically.
 
 The plugin:
 
-1. Waits for the DSH turn and owned sandbox processes to finish.
+1. Shows the real changed paths and patch for review, then checkpoints the cloud agent before applying.
 2. Compares `/workspace` with the immutable launch baseline.
-3. Shows the number of changed files and asks for confirmation.
+3. Waits for active child agents to finish before completing the checkpoint.
 4. Generates a bounded binary Git patch.
 5. Checks the patch against the original local worktree before changing any file.
 6. Applies the patch only when every target is safe and conflict-free.
-7. Deletes that sandbox and returns the same DSH session to local tools.
+7. Imports root and child conversation history with its event timestamps, restores the unsent text and image draft, and restores original laptop permissions.
+8. Deletes the sandbox only after files and history are durable locally.
 
 If local files conflict with the sandbox patch, nothing is applied and the sandbox remains available. Automatic transfer also fails closed for a truncated patch or unsafe symbolic-link target.
 
-After the move completes, continue locally or select Move to Blaxel again. A later move creates a fresh sandbox from the current local worktree while preserving the same DSH session.
+The saved local conversation reopens automatically after a cloud return, restoring its browser image previews. After the move completes, continue locally or select Move to Blaxel again. A later move creates a fresh sandbox from the current local worktree while preserving the same DSH session.
 
-This is a deliberate round trip, not continuous two-way synchronization. Local changes made after a sandbox starts are checked only when you move the sandbox changes back.
+Files are copied when a sandbox starts and transferred back when you select Move back to local. There is no automatic two-way synchronization.
+
+| Where newer edits exist | What happens |
+| --- | --- |
+| Sandbox only | Reopening the same session or reconnecting resumes those sandbox files. Move back to local applies the changes before stopping the sandbox. |
+| Local only | The running sandbox keeps its earlier snapshot. Move back to local keeps your local edits; moving to Blaxel again copies the updated local files. |
+| Both, with compatible edits | Move back to local applies the sandbox patch while preserving compatible local edits. |
+| Both, with conflicting edits | Neither copy is overwritten. The sandbox stays available and a uniquely named recovery patch is saved in the repository's private Git directory. Review the patch and resolve the conflict before retrying. |
+| A different session in the same repository | Open on Blaxel creates a separate sandbox from current local files. Changes in other sandboxes are not included. |
+
+Reconnecting never uploads newer local files over the existing sandbox. The plugin does not choose a winner based on file timestamps. Sandbox-created Git commits contribute file changes to the return patch; their commit history is not imported into the local repository.
+
+An exact already-applied patch is safe to retry. A manual merge that combines both versions may still fail the check. Retry **Move back to local** after merging. Discard permanently loses any unreturned cloud conversation and files, even when you have manually copied some file changes. There is no graphical conflict resolver yet.
 
 ## Discard a sandbox
 
 Select Discard only when its remote changes are no longer needed. The confirmation explains that untransferred changes will be lost.
 
 Discarding removes the remote runtime binding for that session. It does not close DSH, delete the conversation, affect another sandbox, or navigate to another page.
+
+## Recover an interrupted return
+
+The cloud checkpoint is durable across cloud-host restarts. If return fails before local files are applied, the plugin releases the cloud session when it can. If files or history have already been imported, it retains the checkpoint for a safe retry. Reopen the original profile and retry Move back to local; a durable completion receipt lets a cleanup retry finish without importing the same history twice.
+
+Cloud children finish before return because one-shot child work cannot be resumed after a cold restart. A local-to-cloud move requires local child agents to be idle. Browser-only text and image drafts are saved with the session before a handoff.
 
 ## Recover after a restart
 
@@ -171,7 +197,7 @@ The reconnect flow can refresh only that bound workspace while sandboxes exist. 
 | A recovered sandbox shows an authentication error | Its Blaxel OAuth token expired while DSH was stopped | Use Reconnect account for the same workspace |
 | A tool fails with "The sandbox no longer exists." and the chip reads Reconnect Blaxel | The sandbox was deleted or expired while the session was connected | Choose Reconnect and confirm to start a fresh sandbox, or Continue locally to drop it. Idle sessions are probed every 30 seconds and flip to unavailable on their own |
 | A sandbox shows as unavailable and Reconnect says it no longer exists | The sandbox was deleted or expired while DSH was away | Choose Reconnect and confirm to start a fresh sandbox from your current local files, or choose Continue locally to drop it. Changes that existed only in the lost sandbox cannot be recovered |
-| Return to local reports a conflict | The original local files changed since the sandbox baseline | Nothing was applied and the sandbox keeps running. The sandbox patch is saved under `.git/dsh-blaxel/` in the repository; resolve or revert the local conflict and retry, or merge it with `git apply --3way <patch>` |
+| Return to local reports a conflict | The original local files changed since the sandbox baseline | Nothing was applied and the sandbox keeps running. Review the recovery patch under `.git/dsh-blaxel/` and resolve the conflict before retrying. After a manual merge, verify all wanted changes locally before using Discard sandbox. |
 | Return to local rejects the patch | The patch exceeded the 1 MiB transfer limit, was truncated, or targeted an unsafe path | Keep the sandbox running and preserve or reduce the remote change before retrying |
 | A remote tool fails | The sandbox command, filesystem, or connection failed | Read the tool error or reconnect the sandbox; the plugin never falls back to host execution |
 
@@ -181,12 +207,15 @@ The reconnect flow can refresh only that bound workspace while sandboxes exist. 
 - Source files in one snapshot are limited to 512 MiB before compression
 - The compressed snapshot is limited to 256 MiB
 - Automatic sandbox-to-local patches are limited to 1 MiB
+- Conversation, referenced images, and pending draft transfers are limited to 64 MiB
 - One sandbox launch can be prepared at a time
 - Continuous bidirectional file synchronization is not provided
+- At most 32 descendant sessions and 16 MiB combined child history
+- Submodules and nested repositories must be opened as their own workspace; a parent snapshot reports them instead of silently omitting their content
 
 ## Security model
 
-- Blaxel and model credentials stay on the DSH host
+- Blaxel credentials stay on the original computer; only the selected model API key enters the private cloud process
 - Credential-shaped host environment values are removed from sandbox tool processes
 - Common credential paths, Git-ignored files, and private keys are excluded from snapshots
 - Local sessions retain the DSH local sandbox policy
@@ -209,7 +238,7 @@ pnpm pack
 The live test creates a billable Blaxel sandbox and is opt-in:
 
 ```bash
-DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts
+DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts tests/live-roundtrip.test.ts
 ```
 
 Run it only with authorization to use the selected workspace. The [Calibrator round-trip report](docs/calibrator-roundtrip-dogfood.md) records the full local, sandbox, recovery, and move-back journey.

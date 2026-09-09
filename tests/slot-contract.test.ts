@@ -25,6 +25,8 @@ function slotProps(running = false): SessionSlotProps {
   const snapshot: ClientSessionSnapshot = { sessionId: 's1', running }
   return {
     sessionId: 's1',
+    useInput: selector => selector({ draft: '', imageIds: [], phase: 'plain' }),
+    inputActions: { setDraft: () => undefined, addImages: () => true, removeImage: () => undefined },
     useSession: selector => selector(snapshot),
     useSessions: selector => selector(list),
   }
@@ -46,7 +48,7 @@ describe('DSH 0.1.2 session slot contract', () => {
   it('offers to move a local session to Blaxel without a session object prop', () => {
     bridge.status = { ok: true, sandboxes: [], settings: {} as Status['settings'] }
     const html = renderToStaticMarkup(createElement(BlaxelComposerAction, {
-      ...slotProps(), openSession: () => undefined, setComposerBlock: () => undefined,
+      ...slotProps(), conversation: { serializeDraftImages: async () => [], createDraftImages: () => [], releaseDraftImage: () => undefined, blocks: { set: () => undefined, storeFor: () => ({ getSnapshot: () => undefined }) } }, openSession: () => undefined, setComposerBlock: () => undefined,
     }))
     expect(html).toContain('Move to Blaxel')
   })
@@ -54,7 +56,7 @@ describe('DSH 0.1.2 session slot contract', () => {
   it('shows a connected chip for a ready sandbox and a live Reconnect for a lost one', () => {
     bridge.status = sandbox('ready')
     const ready = renderToStaticMarkup(createElement(BlaxelComposerAction, {
-      ...slotProps(), openSession: () => undefined, setComposerBlock: () => undefined,
+      ...slotProps(), conversation: { serializeDraftImages: async () => [], createDraftImages: () => [], releaseDraftImage: () => undefined, blocks: { set: () => undefined, storeFor: () => ({ getSnapshot: () => undefined }) } }, openSession: () => undefined, setComposerBlock: () => undefined,
     }))
     expect(ready).toContain('data-blaxel-sandbox-chip="ready"')
     expect(ready).toContain('On Blaxel')
@@ -62,7 +64,7 @@ describe('DSH 0.1.2 session slot contract', () => {
 
     bridge.status = sandbox('failed')
     const failed = renderToStaticMarkup(createElement(BlaxelComposerAction, {
-      ...slotProps(), openSession: () => undefined, setComposerBlock: () => undefined,
+      ...slotProps(), conversation: { serializeDraftImages: async () => [], createDraftImages: () => [], releaseDraftImage: () => undefined, blocks: { set: () => undefined, storeFor: () => ({ getSnapshot: () => undefined }) } }, openSession: () => undefined, setComposerBlock: () => undefined,
     }))
     expect(failed).toContain('Reconnect Blaxel')
     expect(failed).not.toMatch(/<button[^>]*data-blaxel-sandbox-chip="failed"[^>]*disabled/)

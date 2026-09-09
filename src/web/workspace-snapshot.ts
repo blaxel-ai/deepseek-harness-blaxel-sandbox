@@ -117,6 +117,13 @@ async function safeEntry(root: string, path: string): Promise<{ include: boolean
     return { include: false, bytes: 0 }
   }
   if (!info.isFile() && !info.isSymbolicLink() && !info.isDirectory()) return { include: false, bytes: 0 }
+  if (info.isDirectory()) {
+    const nested = await lstat(join(full, '.git')).then(() => true, () => false)
+    const staged = await git(root, ['ls-files', '--stage', '--', path])
+    if (nested || staged.startsWith('160000 ')) {
+      throw new Error(`Cannot snapshot submodule or nested repository "${path}"; open that repository as its own workspace`)
+    }
+  }
   const containmentTarget = info.isSymbolicLink() ? await realpath(dirname(full)) : await realpath(full)
   if (!inside(root, containmentTarget)) return { include: false, bytes: 0 }
   return { include: true, bytes: info.isFile() ? info.size : 0 }

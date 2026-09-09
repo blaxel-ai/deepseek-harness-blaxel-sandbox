@@ -187,7 +187,11 @@ export class BlaxelDivergence {
         // Intent-to-add makes files created in the sandbox visible to both the
         // listing and the patch, and expands directories to their own entries.
         `${pair} add -A -N >/dev/null 2>&1 || true`,
-        `${pair} status --porcelain=v1 -z -uall > ${statusFile} || exit ${String(STATUS_FAILED_EXIT)}`,
+        // Status against HEAD hides work the agent committed. Report against
+        // the same immutable baseline used by the patch, with NUL-safe paths.
+        `${pair} diff --name-status --no-renames -z ${shellQuote(baseline.commit)} | `
+          + `while IFS= read -r -d '' dsh_status && IFS= read -r -d '' dsh_path; do printf '%-2s %s\\0' "$dsh_status" "$dsh_path"; done `
+          + `> ${statusFile} || exit ${String(STATUS_FAILED_EXIT)}`,
         `${pair} diff --shortstat ${shellQuote(baseline.commit)} > ${statFile} || exit ${String(DIFF_FAILED_EXIT)}`,
         `head -c ${String(MAX_STATUS_BYTES)} ${statusFile} | base64 -w0`,
         `printf '\\n%s\\n' "$(wc -c < ${statusFile})"`,

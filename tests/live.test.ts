@@ -65,10 +65,71 @@ describe.skipIf(!enabled)('Blaxel live DSH seams', () => {
       await new Promise(resolve => setTimeout(resolve, 500))
       expect(Buffer.concat(chunks).toString()).toContain('DSH_BLAXEL_TERMINAL_OK')
       await terminal.terminate()
+
+      const unusual = await ctx.fs.resolve('nested/日本語 file\nwith newline.txt')
+      await ctx.fs.writeText(unusual, 'first\n', { kind: 'createIfAbsent' })
+      const old = await ctx.fs.stat(unusual)
+      await ctx.fs.writeText(unusual, 'changed externally\n')
+      await expect(ctx.fs.editText(unusual, { oldString: 'first', newString: 'stale', replaceAll: false }, { version: old!.version }))
+        .rejects.toMatchObject({ code: 'FS_STALE_VERSION' })
+      expect(await ctx.fs.readText(unusual)).toBe('changed externally\n')
+      expect((await ctx.fs.listDir(await ctx.fs.resolve('nested'))).map(entry => entry.name)).toContain('日本語 file\nwith newline.txt')
+
+      const raced = await ctx.fs.resolve('simultaneous-create.txt')
+      const writes = await Promise.allSettled([
+        ctx.fs.writeText(raced, 'first writer', { kind: 'createIfAbsent' }),
+        ctx.fs.writeText(raced, 'second writer', { kind: 'createIfAbsent' }),
+      ])
+      expect(writes.map(result => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+      expect(await ctx.fs.readText(raced)).toBe('first writer')
+      const aborted = new AbortController()
+      aborted.abort()
+      await expect(ctx.fs.writeText(raced, 'must not write', undefined, aborted.signal)).rejects.toThrow()
+      expect(await ctx.fs.readText(raced)).toBe('first writer')
+      await expect(ctx.fs.readText(await ctx.fs.resolve('absent.txt'))).rejects.toMatchObject({ code: 'FS_NOT_FOUND' })
+      await expect(ctx.fs.readText(await ctx.fs.resolve('nested'))).rejects.toMatchObject({ code: 'FS_NOT_REGULAR_FILE' })
+
+      const failedCommand = ctx.subprocess.spawn({
+        argv: ['/bin/bash', '-lc', 'printf "command not found" >&2; exit 37'], cwd: ctx.blaxel.cwd,
+        stdio: { stdin: 'ignore', stdout: { maxBytes: 64 }, stderr: { maxBytes: 64 } }, graceMs: 500,
+      })
+      await expect(failedCommand.done).resolves.toMatchObject({ exitCode: 37 })
+      expect(ctx.blaxel.phase).toBe('ready')
+      const missingDirectory = ctx.subprocess.spawn({
+        argv: ['/bin/bash', '-lc', 'printf unexpected > /workspace/wrong-directory.txt'], cwd: '/workspace/does-not-exist',
+        stdio: { stdin: 'ignore', stdout: { maxBytes: 64 }, stderr: { maxBytes: 1024 } }, graceMs: 500,
+      })
+      await expect(missingDirectory.done).rejects.toThrow("folder '/workspace/does-not-exist' does not exist")
+      expect(ctx.blaxel.phase).toBe('ready')
+      expect(await ctx.fs.stat(await ctx.fs.resolve('wrong-directory.txt'))).toBeUndefined()
+      const verbose = ctx.subprocess.spawn({
+        argv: ['/bin/bash', '-lc', 'head -c 8192 /dev/zero | tr "\\0" x'], cwd: ctx.blaxel.cwd,
+        stdio: { stdin: 'ignore', stdout: { maxBytes: 64 }, stderr: { maxBytes: 64 } }, graceMs: 500,
+      })
+      await verbose.done
+      expect(verbose.collected.stdout?.readFrom(0)).toMatchObject({ text: 'x'.repeat(64), nextOffset: 8192, lossy: true })
+
+      const slow = ctx.subprocess.spawn({
+        argv: ['/bin/bash', '-lc', 'sleep 2; printf orphaned > late-child.txt'], cwd: ctx.blaxel.cwd,
+        stdio: { stdin: 'ignore', stdout: { maxBytes: 64 }, stderr: { maxBytes: 64 } }, graceMs: 500,
+      })
+      await new Promise(resolve => setTimeout(resolve, 300))
+      slow.terminate()
+      await slow.done
+      await new Promise(resolve => setTimeout(resolve, 2200))
+      expect(await ctx.fs.stat(await ctx.fs.resolve('late-child.txt'))).toBeUndefined()
+
+      const background = ctx.subprocess.spawn({
+        argv: ['/bin/bash', '-lc', '(sleep 2; printf orphaned > background-child.txt) & exit 0'], cwd: ctx.blaxel.cwd,
+        stdio: { stdin: 'ignore', stdout: { maxBytes: 64 }, stderr: { maxBytes: 64 } }, graceMs: 500,
+      })
+      await background.done
+      await new Promise(resolve => setTimeout(resolve, 2200))
+      expect(await ctx.fs.stat(await ctx.fs.resolve('background-child.txt'))).toBeUndefined()
     } finally {
       await subprocess.dispose()
       await fs.dispose()
       await owner.dispose()
     }
-  }, 120_000)
+  }, 180_000)
 })

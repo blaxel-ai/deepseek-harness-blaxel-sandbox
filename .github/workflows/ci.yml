@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -28,29 +28,39 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
 
-  # Boots DSH Web with the linked plugin and drives it in Chromium.
+  # Pack and install into a fresh profile, then drive the shipped launcher in Chromium.
   e2e:
+    strategy:
+      matrix:
+        node: [22, 24]
     runs-on: ubuntu-latest
+    env:
+      DSH_HOME: ${{ runner.temp }}/dsh-e2e
+      DSH_BLAXEL_RUNTIME_CACHE: ${{ runner.temp }}/dsh-runtime
+      DSH_TEST_LAUNCHER: ${{ runner.temp }}/dsh-e2e/profiles/web/node_modules/@blaxel/dsh-sandbox/dist/cli.js
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - name: Install DSH and link the plugin into the Web profile
+      - run: pnpm pack
+      - name: Install the packed plugin into the fresh Web profile
         run: |
-          DSH=$(node -p 'require("./package.json").peerDependencies["@deepseek-ai/dsh-subprocess"].replace(/^\^/, "")')
-          npm install --global "@deepseek-ai/dsh@${DSH}"
-          dsh plugin --profile web link "$PWD"
+          VERSION=$(node -p 'require("./package.json").version')
+          node dist/cli.js plugin --profile web add \
+            --allow-build=@deepseek-ai/dsh-subprocess-local \
+            --allow-build=koffi --allow-build=node-pty \
+            --allow-build=@google/genai --allow-build=protobufjs \
+            "$PWD/blaxel-dsh-sandbox-${VERSION}.tgz"
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.node }}
           path: test-results/
 
   # Early warning for the next DSH release candidate. Allowed to fail; a red run
@@ -60,7 +70,7 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -95,7 +105,7 @@ jobs:
       BL_WORKSPACE: ${{ secrets.BL_WORKSPACE }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -104,4 +114,5 @@ jobs:
       - name: Live sandbox smoke
         run: |
           if [ -z "$BL_API_KEY" ]; then echo "BL_API_KEY secret not set; skipping live smoke"; exit 0; fi
-          DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts
+          pnpm build
+          DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts tests/live-roundtrip.test.ts

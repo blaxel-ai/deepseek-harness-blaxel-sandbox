@@ -81,6 +81,10 @@ export interface BlaxelSessionProjections {
 }
 
 declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /** Native session-list publication after adopting durable conversation history. */
+    'api-session/added'(item: SessionListItem): void
+  }
   interface Context {
     webServer: BlaxelWebServer
     sessionController: BlaxelSessionController

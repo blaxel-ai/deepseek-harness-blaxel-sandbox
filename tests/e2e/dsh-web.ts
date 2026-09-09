@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 
@@ -25,14 +25,15 @@ function seedWorkspace(): void {
   writeFileSync(file, JSON.stringify({
     unit: { name: 'workspace', version: 2 },
     global: { initialized: true, workspaceIds: [id], archivedSessionIds: [] },
-    tables: { workspaces: { [id]: { path: process.cwd(), title: basename(process.cwd()), sessionIds: [], createdAt: now, updatedAt: now } } },
+    tables: { workspaces: { [id]: { path: realpathSync(process.cwd()), title: basename(process.cwd()), sessionIds: [], createdAt: now, updatedAt: now } } },
   }, null, 2))
 }
 
-/** Starts `dsh web` on a free port and resolves once it prints its tokenised URL. */
+/** Boot the cloud-capable launcher, optionally from a freshly installed package. */
 export async function startDshWeb(): Promise<DshWeb> {
   seedWorkspace()
-  const child: ChildProcess = spawn('dsh', ['web', '--no-open', '--port', '0'], {
+  const launcher = process.env.DSH_TEST_LAUNCHER ?? join(process.cwd(), 'dist/cli.js')
+  const child: ChildProcess = spawn(process.execPath, [launcher, 'web', '--no-open', '--port', '0'], {
     detached: true,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],

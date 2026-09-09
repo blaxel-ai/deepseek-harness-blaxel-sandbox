@@ -1,0 +1,47 @@
+# The private preview authenticates browsers; native DSH retains the Host/Origin fence.
+- id: webserver
+  config:
+    host: 0.0.0.0
+    port: 5173
+    compression: gzip
+    compressionLevel: 1
+    compressionThresholdBytes: 1024
+- id: web-runtime
+  config:
+    openBrowser: false
+    printUrl: false
+    surfaceContext: true
+    trustedHosts: ['__DSH_PREVIEW_HOST__']
+- id: connection
+  disabled: true
+- id: sandbox-policy
+  config:
+    mode: danger-full-access
+    workspaceRoot: /workspace
+- id: approval
+  config:
+    policy: never
+- id: permission
+  config:
+    presets:
+      danger-full-access:
+        name: Blaxel sandbox
+        description: Tools run inside this isolated Blaxel sandbox.
+        sandbox: danger-full-access
+        approval: never
+    defaultPreset: danger-full-access
+- id: typert-gateway
+  disabled: true
+- insert:
+    - id: blaxel-native-connection-client
+      name: '__DSH_PLUGIN_ROOT__/dist/native-client/connection/index.js'
+    - id: blaxel-native-gateway-client
+      name: '__DSH_PLUGIN_ROOT__/dist/native-client/gateway/index.js'
+    - id: blaxel-cloud-connection
+      name: '@blaxel/dsh-sandbox/cloud-connection'
+    - id: blaxel-cloud-gateway
+      name: '@blaxel/dsh-sandbox/cloud-gateway'
+    - id: blaxel-cloud-guest
+      name: '@blaxel/dsh-sandbox/cloud-guest'
+    - id: blaxel-client
+      name: '@blaxel/dsh-sandbox'

@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 /**
- * Browser regression suite against a real DSH Web host with this plugin linked
+ * Browser regression suite against the pinned DSH Web host with this plugin linked
  * into the `web` profile (see GUIDE.md). Run with `pnpm e2e`; not part of `pnpm check`.
  */
 export default defineConfig({

@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { describe, expect, it, vi } from 'vitest'
 import { RoutingSubprocessRuntime } from '../src/subprocess/router.js'
-import { remoteArgv, remoteExecutable } from '../src/subprocess/service.js'
+import { BlaxelSubprocessRuntime, remoteArgv, remoteExecutable } from '../src/subprocess/service.js'
 
 function routingRuntime(ctx: Context, local: SubprocessRuntime): RoutingSubprocessRuntime {
   const runtime = Object.create(RoutingSubprocessRuntime.prototype) as RoutingSubprocessRuntime
@@ -14,6 +14,19 @@ function routingRuntime(ctx: Context, local: SubprocessRuntime): RoutingSubproce
 }
 
 describe('remote subprocess routing', () => {
+  it('does not start remote work when cancellation already happened', () => {
+    const abort = new AbortController()
+    abort.abort(new Error('user cancelled'))
+    const getSandbox = vi.fn()
+    const runtime = Object.create(BlaxelSubprocessRuntime.prototype) as BlaxelSubprocessRuntime
+    Object.assign(runtime, { ctx: { blaxel: { getSandbox } }, disposing: false, live: new Set() })
+    expect(() => runtime.spawn({ argv: ['touch', '/workspace/unwanted'], cwd: '/workspace', graceMs: 100,
+      stdio: { stdin: 'ignore', stdout: { maxBytes: 64 }, stderr: { maxBytes: 64 } }, signal: abort.signal,
+    })).toThrow('user cancelled')
+    expect(getSandbox).not.toHaveBeenCalled()
+    expect(runtime.ownedProcesses()).toBe(0)
+  })
+
   it('removes the macOS sandbox wrapper before Linux execution', () => {
     expect(remoteArgv([
       'sandbox-exec',

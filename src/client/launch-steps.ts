@@ -9,6 +9,7 @@ export const LAUNCH_STEPS: readonly LaunchStep[] = [
   'archiving',
   'session',
   'starting',
+  'host',
   'ready',
 ]
 
@@ -27,6 +28,7 @@ function label(step: LaunchStep): string {
     case 'archiving': return 'Preparing the workspace snapshot'
     case 'session': return 'Preparing the session handoff'
     case 'starting': return 'Starting the Blaxel sandbox'
+    case 'host': return 'Starting the cloud agent and restoring your conversation'
     case 'ready': return 'Ready on Blaxel'
   }
 }
@@ -61,5 +63,5 @@ export function launchLines(progress: LaunchProgress): LaunchLine[] {
 
 /** True while the host is doing launch work this window should be watching. */
 export function launching(status: Status | undefined): boolean {
-  return status?.progress !== undefined && status.progress.step !== 'ready'
+  return status?.progress !== undefined && status.progress.step !== 'ready' && status.progress.error === undefined
 }

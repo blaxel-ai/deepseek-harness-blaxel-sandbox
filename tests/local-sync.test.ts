@@ -211,7 +211,7 @@ describe('returning home: local work and sandbox work meet', () => {
     const failure = await applySandboxPatch(root, patch).then(() => new Error('unexpectedly applied'), (error: unknown) => error as Error)
 
     expect(failure.message).toContain('nothing was applied')
-    expect(failure.message).toContain('git apply --3way')
+    expect(failure.message).toContain('retry Move back to local')
     expect(await readFile(join(root, 'new.txt'), 'utf8')).toBe('local version\n')
     const saved = /saved to (\S+\.patch)/.exec(failure.message)?.[1]
     expect(saved).toBeDefined()
@@ -228,6 +228,29 @@ describe('returning home: local work and sandbox work meet', () => {
 
     await expect(applySandboxPatch(root, patch)).rejects.toThrow(/feature\.txt.*nothing was applied|nothing was applied.*feature\.txt/s)
     expect(await readFile(join(root, 'feature.txt'), 'utf8')).toBe('home\n')
+  })
+
+  it('keeps both recovery patches when two sessions conflict at the same timestamp', async () => {
+    const root = await project()
+    const first = await sandboxPatch(root, async sandbox => { await writeFile(join(sandbox, 'feature.txt'), 'sandbox one\n') })
+    const second = await sandboxPatch(root, async sandbox => { await writeFile(join(sandbox, 'feature.txt'), 'sandbox two\n') })
+    await writeFile(join(root, 'feature.txt'), 'home\n')
+    const failures = await Promise.all([first, second].map(patch => applySandboxPatch(root, patch).catch((error: unknown) => error as Error)))
+    const paths = failures.map(error => /saved to (.+?\.patch);/.exec((error as Error).message)?.[1])
+    expect(paths[0]).toBeDefined()
+    expect(paths[1]).toBeDefined()
+    expect(paths[0]).not.toBe(paths[1])
+    expect(await readFile(paths[0]!, 'utf8')).toBe(first.text)
+    expect(await readFile(paths[1]!, 'utf8')).toBe(second.text)
+    expect(await readFile(join(root, 'feature.txt'), 'utf8')).toBe('home\n')
+  })
+
+  it('preserves a manual merge that cannot be verified as an exact applied patch', async () => {
+    const root = await project()
+    const patch = await sandboxPatch(root, async sandbox => { await writeFile(join(sandbox, 'feature.txt'), 'sandbox\n') })
+    await writeFile(join(root, 'feature.txt'), 'sandbox\nhome\n')
+    await expect(applySandboxPatch(root, patch)).rejects.toThrow('If you have already merged every sandbox change locally')
+    expect(await readFile(join(root, 'feature.txt'), 'utf8')).toBe('sandbox\nhome\n')
   })
 
   it('applies a sandbox deletion when the file is unchanged locally', async () => {
