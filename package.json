@@ -135,7 +135,7 @@
   },
   "dependencies": {
     "@apify/mcpc": "0.6.0",
-    "@blaxel/core": "0.3.12",
+    "@blaxel/core": "0.3.19",
     "@deepseek-ai/dsh-agent": "0.1.2-rc.1",
     "@deepseek-ai/dsh-api-gateway": "0.1.2-rc.1",
     "@deepseek-ai/dsh-attachment": "0.1.2-rc.1",

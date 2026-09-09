@@ -23,8 +23,8 @@ importers:
         specifier: 0.6.0
         version: 0.6.0
       '@blaxel/core':
-        specifier: 0.3.12
-        version: 0.3.12(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))
+        specifier: 0.3.19
+        version: 0.3.19(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))
       '@deepseek-ai/dsh-agent':
         specifier: 0.1.2-rc.1
         version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)))(@deepseek-ai/dsh-session@0.1.2-rc.1(patch_hash=69ea7c23bf05c19b87e0cdeb8ef05aa116cdcccb2598991d9b69b7e120b6c859)(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-system-prompt@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))
@@ -78,7 +78,7 @@ importers:
         version: 3.18.2
       '@earendil-works/pi-ai':
         specifier: 0.84.4
-        version: 0.84.4(@modelcontextprotocol/sdk@1.30.0)(ws@8.21.3)(zod@4.5.4)
+        version: 0.84.4(@modelcontextprotocol/sdk@1.30.0)(ws@8.21.3)(zod@4.6.0)
       skills:
         specifier: 1.5.23
         version: 1.5.23
@@ -303,8 +303,8 @@ packages:
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
     engines: {node: '>=6.9.0'}
 
-  '@blaxel/core@0.3.12':
-    resolution: {integrity: sha512-uhEaQosx3Xtt+wU9A+8DDefTq0Fz48pLlw1t/6c0RK+khTIl/3/xGdmiD3TwTt5KdV3Y8EpuCtIpNsRkR1zvTA==}
+  '@blaxel/core@0.3.19':
+    resolution: {integrity: sha512-xq0uFLx7BPkfqI1PiJVxlRWr0lBr7zPP6v9UtMtAFopJ/CkWrU9xkIFiMDS0DoPR6ra1Rtx134bOkSjHCgQhdw==}
     engines: {node: '>=18'}
 
   '@deepseek-ai/cordis-plugin-include@1.0.6':
@@ -2067,8 +2067,8 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
-  hono@4.13.6:
-    resolution: {integrity: sha512-47iXdWYWIbuY+X5URwNIgnvRV/kLneGu6ubzIoaNqbVHNuHF4Mxg/Uw0PNH3APM0iwiPAY6iFawfEEhHikniaQ==}
+  hono@4.13.7:
+    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
     engines: {node: '>=16.9.0'}
 
   http-errors@2.0.1:
@@ -2157,6 +2157,9 @@ packages:
 
   jose@6.2.11:
     resolution: {integrity: sha512-A5NPn7g8EAzGU3IzRs+Yiq8K5n3ypYS75M5+KKiVHdUexfpWK1kP4ZMq7QnTGDoMj6TJ1dtcEJjW60yZDXS4hg==}
+
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -2882,13 +2885,16 @@ packages:
   zod@4.5.4:
     resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
 
+  zod@4.6.0:
+    resolution: {integrity: sha512-iIvwyDnebKYpww2ta0DjaNOL8RnVLmPMhgWyOzlW9y0EIIxv5gl+H6Y0ONpt83HqjGqkk78uWp6xWtpxzZdPbw==}
+
 snapshots:
 
-  '@anthropic-ai/sdk@0.91.1(zod@4.5.4)':
+  '@anthropic-ai/sdk@0.91.1(zod@4.6.0)':
     dependencies:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
-      zod: 4.5.4
+      zod: 4.6.0
 
   '@apify/mcpc@0.6.0':
     dependencies:
@@ -3122,7 +3128,7 @@ snapshots:
 
   '@babel/runtime@7.29.7': {}
 
-  '@blaxel/core@0.3.12(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))':
+  '@blaxel/core@0.3.19(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))
       '@modelcontextprotocol/sdk': 1.30.0
@@ -3136,7 +3142,7 @@ snapshots:
       uuid: 11.1.1
       ws: 8.21.3
       yaml: 2.9.0
-      zod: 4.5.4
+      zod: 4.6.0
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@hey-api/openapi-ts'
@@ -3404,16 +3410,16 @@ snapshots:
       '@deepseek-ai/cosmokit': 1.8.3
       '@standard-schema/spec': 1.1.0
 
-  '@earendil-works/pi-ai@0.84.4(@modelcontextprotocol/sdk@1.30.0)(ws@8.21.3)(zod@4.5.4)':
+  '@earendil-works/pi-ai@0.84.4(@modelcontextprotocol/sdk@1.30.0)(ws@8.21.3)(zod@4.6.0)':
     dependencies:
-      '@anthropic-ai/sdk': 0.91.1(zod@4.5.4)
+      '@anthropic-ai/sdk': 0.91.1(zod@4.6.0)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
       '@earendil-works/pi-telemetry': 0.84.4
       '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.30.0)
       '@smithy/node-http-handler': 4.7.3
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.6
-      openai: 6.40.0(ws@8.21.3)(zod@4.5.4)
+      openai: 6.40.0(ws@8.21.3)(zod@4.6.0)
       partial-json: 0.1.7
       typebox: 1.3.7
     transitivePeerDependencies:
@@ -3649,9 +3655,9 @@ snapshots:
 
   '@hey-api/types@0.1.4': {}
 
-  '@hono/node-server@2.1.1(hono@4.13.6)':
+  '@hono/node-server@2.1.1(hono@4.13.7)':
     dependencies:
-      hono: 4.13.6
+      hono: 4.13.7
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -3734,15 +3740,15 @@ snapshots:
       eventsource-parser: 3.1.1
       jose: 6.2.11
       pkce-challenge: 5.0.1
-      zod: 4.5.4
+      zod: 4.6.0
 
   '@modelcontextprotocol/core@2.0.0':
     dependencies:
-      zod: 4.5.4
+      zod: 4.6.0
 
   '@modelcontextprotocol/sdk@1.30.0':
     dependencies:
-      '@hono/node-server': 2.1.1(hono@4.13.6)
+      '@hono/node-server': 2.1.1(hono@4.13.7)
       ajv: 8.20.0
       ajv-formats: 3.0.1
       content-type: 1.0.5
@@ -3752,13 +3758,13 @@ snapshots:
       eventsource-parser: 3.1.1
       express: 5.2.1
       express-rate-limit: 8.7.0(express@5.2.1)
-      hono: 4.13.6
-      jose: 6.2.11
+      hono: 4.13.7
+      jose: 6.2.12
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.5.4
-      zod-to-json-schema: 3.25.2(zod@4.5.4)
+      zod: 4.6.0
+      zod-to-json-schema: 3.25.2(zod@4.6.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -4708,7 +4714,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.13.6: {}
+  hono@4.13.7: {}
 
   http-errors@2.0.1:
     dependencies:
@@ -4786,6 +4792,8 @@ snapshots:
   jiti@2.7.0: {}
 
   jose@6.2.11: {}
+
+  jose@6.2.12: {}
 
   js-tokens@4.0.0: {}
 
@@ -4954,10 +4962,10 @@ snapshots:
       powershell-utils: 0.1.0
       wsl-utils: 0.3.1
 
-  openai@6.40.0(ws@8.21.3)(zod@4.5.4):
+  openai@6.40.0(ws@8.21.3)(zod@4.6.0):
     optionalDependencies:
       ws: 8.21.3
-      zod: 4.5.4
+      zod: 4.6.0
 
   ora@9.4.1:
     dependencies:
@@ -5545,8 +5553,10 @@ snapshots:
       compress-commons: 6.0.2
       readable-stream: 4.7.0
 
-  zod-to-json-schema@3.25.2(zod@4.5.4):
+  zod-to-json-schema@3.25.2(zod@4.6.0):
     dependencies:
-      zod: 4.5.4
+      zod: 4.6.0
 
   zod@4.5.4: {}
+
+  zod@4.6.0: {}
