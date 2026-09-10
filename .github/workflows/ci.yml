@@ -27,6 +27,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: pnpm audit --audit-level=low
 
   # Pack and install into a fresh profile, then drive the shipped launcher in Chromium.
   e2e:

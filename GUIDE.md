@@ -24,17 +24,17 @@ The same session identity and history move between hosts. Once the cloud page is
 
 ## Install the plugin
 
-After the package is published, install it into the DSH Web profile:
+Install the current plugin into the DSH Web profile:
 
 ```bash
-dsh plugin --profile web add \
+npx --yes --package @blaxel/dsh-sandbox@latest dsh-blaxel plugin --profile web add \
   --allow-build=@deepseek-ai/dsh-subprocess-local \
   --allow-build=koffi \
   --allow-build=node-pty \
   --allow-build=@google/genai \
   --allow-build=protobufjs \
-  @blaxel/dsh-sandbox
-npx --package @blaxel/dsh-sandbox dsh-blaxel web
+  @blaxel/dsh-sandbox@latest
+npx --yes --package @blaxel/dsh-sandbox@latest dsh-blaxel web
 ```
 
 To use the repository before publication:

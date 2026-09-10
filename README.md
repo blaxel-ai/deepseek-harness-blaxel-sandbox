@@ -1,6 +1,6 @@
 # Blaxel Sandbox for DeepSeek Harness
 
-The unreleased cloud-handoff implementation moves a DeepSeek Harness Web conversation and its current Git worktree to an independent DSH host in a private Blaxel sandbox. Once the cloud page is ready, model requests and tools continue there with the originating computer offline. Published tools-only versions require the original host to stay running.
+Version 0.1.3 moves a DeepSeek Harness Web conversation and its current Git worktree to an independent DSH host in a private Blaxel sandbox. Once the cloud page is ready, model requests and tools continue there with the originating computer offline. Earlier tools-only versions require the original host to stay running.
 
 Use [GUIDE.md](GUIDE.md) for setup and recovery, and [the cloud handoff contract](docs/cloud-session-handoff.md) for implementation status and tested boundaries.
 
@@ -28,6 +28,7 @@ DeepSeek Harness is in developer preview and its plugin contracts change between
 
 | Plugin | DSH host | Node.js |
 | -- | -- | -- |
+| `0.1.3` | `0.1.2-rc.1` | 22.19+, 24+ |
 | `0.1.2`, `0.1.1` | `0.1.2-rc.1` | 22, 24 |
 | `0.1.0` | `0.1.1-rc.2` | 22, 24 |
 
@@ -35,17 +36,17 @@ When DSH publishes a new version, the plugin is re-verified against it and, when
 
 ## Profile installation
 
-After the package is published, install it into the DSH Web profile with the native helpers it requires:
+Install the current plugin into the DSH Web profile with the native helpers it requires:
 
 ```sh
-dsh plugin --profile web add \
+npx --yes --package @blaxel/dsh-sandbox@latest dsh-blaxel plugin --profile web add \
   --allow-build=@deepseek-ai/dsh-subprocess-local \
   --allow-build=koffi \
   --allow-build=node-pty \
   --allow-build=@google/genai \
   --allow-build=protobufjs \
-  @blaxel/dsh-sandbox
-npx --package @blaxel/dsh-sandbox dsh-blaxel web
+  @blaxel/dsh-sandbox@latest
+npx --yes --package @blaxel/dsh-sandbox@latest dsh-blaxel web
 ```
 
 ## Development installation

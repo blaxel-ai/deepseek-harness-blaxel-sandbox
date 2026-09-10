@@ -82,22 +82,23 @@ describe('sandbox runtime recovery', () => {
     const deleteSandbox = vi.fn(async () => undefined)
     const release = vi.fn(async () => undefined)
     const removeBinding = vi.fn()
+    const releaseWorkspace = vi.fn()
     const internal = runtime as unknown as {
       recovery: Promise<void>
-      settings: { refreshAuthentication(workspace: string): Promise<void> }
+      settings: { refreshAuthentication(workspace: string): Promise<void>; releaseWorkspace(): void }
       sessions: Map<string, unknown>
-      bindings: { remove(sessionId: string): void }
+      bindings: { remove(sessionId: string): void; list(): unknown[] }
       recoveryErrors: Map<string, string>
       missingSandboxes: Set<string>
     }
     internal.recovery = Promise.resolve()
-    internal.settings = { refreshAuthentication }
+    internal.settings = { refreshAuthentication, releaseWorkspace }
     internal.sessions = new Map([['session-active', {
       workspace: 'example-workspace',
       runtime: { deleteSandbox },
       release,
     }]])
-    internal.bindings = { remove: removeBinding }
+    internal.bindings = { remove: removeBinding, list: () => [] }
     internal.recoveryErrors = new Map()
     internal.missingSandboxes = new Set()
 
@@ -107,6 +108,7 @@ describe('sandbox runtime recovery', () => {
     expect(deleteSandbox).toHaveBeenCalledOnce()
     expect(removeBinding).toHaveBeenCalledWith('session-active')
     expect(release).toHaveBeenCalledOnce()
+    expect(releaseWorkspace).toHaveBeenCalledOnce()
   })
 
   it('allows credential refresh only for the workspace already bound to persisted sandboxes', () => {
