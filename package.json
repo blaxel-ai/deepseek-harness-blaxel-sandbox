@@ -154,7 +154,7 @@
     "@deepseek-ai/dsh-subprocess-local": "0.1.2-rc.1",
     "@deepseek-ai/dsh-system-prompt": "0.1.2-rc.1",
     "@deepseek-ai/schemastery": "^3.18.1-rc.1",
-    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-ai": "0.85.1",
     "skills": "1.5.23",
     "ws": "^8.21.3",
     "yaml": "^2.9.0"
