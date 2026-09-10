@@ -1,6 +1,6 @@
 # Cloud session handoff
 
-The cloud handoff candidate is implemented and unreleased. The published tools-only package requires the original host to keep running. This document separates the verified candidate from the public release.
+Cloud session handoff requires plugin version 0.1.3 or later. Earlier tools-only versions require the original host to keep running. This document describes the handoff contract and its verification.
 
 ## User workflow
 
@@ -56,6 +56,8 @@ The private acceptance artifacts and screenshot manifest are maintained with the
 - At most 32 descendant sessions and 16 MiB combined child history
 - Submodules and nested repositories opened as their own workspace
 
-## Release gates
+## Verification and release
 
-The implementation, documentation changes, screenshots, unpublished Strapi article, and social copy are prepared for review. Source review, final-SHA CI, merge, npm publication, docs deployment, and content publication are separate release actions. Fresh-package browser CI covers Node 22 and 24; the scheduled live suite also boots and authenticates the native private cloud host, freezes its transcript and draft, and returns its files. Independent model continuation has separate live browser evidence above. Do not advertise cloud continuation for the existing tools-only release.
+Fresh-package browser CI covers Node 22 and 24. The credentialed suite boots and authenticates the native private cloud host, rejects forged external preview requests, verifies native subprocess and terminal execution, freezes its transcript and draft, and returns its files. Independent model continuation has separate live browser evidence above. Version 0.1.3 pins the published `@blaxel/core@0.3.20-preview.290` SDK to include its TOML security fix; move to a stable SDK after the fix is released and revalidated.
+
+Package publication, documentation deployment, and content publication are separate release steps. Verify the installed package version before relying on cloud continuation; earlier tools-only versions need the original host to keep running.

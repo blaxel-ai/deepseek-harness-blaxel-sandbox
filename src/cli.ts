@@ -13,6 +13,33 @@ const version = '0.1.2-rc.1'
 const packageRoot = fileURLToPath(new URL('../', import.meta.url))
 const patch = join(packageRoot, 'patches', `@deepseek-ai__dsh-session@${version}.patch`)
 
+/** Profile dependencies can shadow the launcher's cached native session package. */
+export async function prepareProfileImports(profileRoot: string): Promise<void> {
+  const require = createRequire(join(profileRoot, 'package.json'))
+  const roots = new Set<string>()
+  for (const anchor of ['@deepseek-ai/dsh-session', '@deepseek-ai/dsh-agent']) {
+    let manifest: string
+    try { manifest = require.resolve(`${anchor}/package.json`) }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND') continue; throw error }
+    const sessionManifest = createRequire(manifest).resolve('@deepseek-ai/dsh-session/package.json')
+    roots.add(dirname(await realpath(sessionManifest)))
+  }
+  for (const root of roots) {
+    const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version?: string }
+    if (manifest.version !== version) throw new Error(`Cloud history import requires @deepseek-ai/dsh-session ${version}`)
+    try { await exec('git', ['apply', '--reverse', '--check', patch], { cwd: root }); continue }
+    catch { /* Apply only when the exact supported source accepts the patch. */ }
+    try {
+      await exec('git', ['apply', '--check', patch], { cwd: root })
+      await exec('git', ['apply', patch], { cwd: root })
+    } catch (error) {
+      // Another launcher may have finished the same patch after our check.
+      try { await exec('git', ['apply', '--reverse', '--check', patch], { cwd: root }) }
+      catch { throw error }
+    }
+  }
+}
+
 /** Keep the required native import extension isolated from the user's installed DSH. */
 export async function prepareRuntime(cacheRoot = process.env.DSH_BLAXEL_RUNTIME_CACHE ?? join(homedir(), '.cache', 'blaxel', 'dsh')): Promise<string> {
   const hash = createHash('sha256').update(await readFile(patch)).digest('hex').slice(0, 16)
@@ -39,6 +66,12 @@ export async function prepareRuntime(cacheRoot = process.env.DSH_BLAXEL_RUNTIME_
 
 async function main(): Promise<void> {
   const entry = await prepareRuntime()
+  const args = process.argv.slice(2)
+  if (args[0] !== 'plugin') {
+    const index = args.findIndex(argument => argument === '--profile' || argument.startsWith('--profile='))
+    const profile = args[0] === 'web' || index < 0 ? 'web' : args[index] === '--profile' ? args[index + 1] : args[index]!.slice('--profile='.length)
+    if (profile) await prepareProfileImports(join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'profiles', profile))
+  }
   const child = spawn(process.execPath, [entry, ...process.argv.slice(2)], { stdio: 'inherit', env: process.env })
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => child.kill(signal))
   child.on('error', error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1 })

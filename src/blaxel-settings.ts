@@ -229,6 +229,7 @@ function safeCommandError(error: unknown, redactions: string[]): Error {
 export class BlaxelSettingsManager {
   private readonly explicitBlEnv = process.env.BL_ENV
   private readonly browserLogins = new Map<string, PendingBrowserLogin>()
+  private selectedWorkspace?: string
   private choicesCache?: { key: string; expiresAt: number; value: BlaxelSettingsChoices }
 
   constructor(private readonly paths: BlaxelSettingsPaths = defaultSettingsPaths()) {}
@@ -266,9 +267,10 @@ export class BlaxelSettingsManager {
     const cli = await readCliConfiguration(this.paths.cliConfig)
     const environmentSource = authEnvironmentSource()
     const envWorkspace = process.env.BL_WORKSPACE?.trim() || undefined
-    const selected = cli.workspaces.find(item => item.name === cli.current)
+    const selectedWorkspace = this.selectedWorkspace ?? cli.current
+    const selected = cli.workspaces.find(item => item.name === selectedWorkspace)
     const source = environmentSource ?? (hasCredentials(selected?.credentials) ? 'cli' : 'none')
-    const workspace = envWorkspace ?? cli.current
+    const workspace = envWorkspace ?? selectedWorkspace
     const development = (process.env.BL_ENV ?? selected?.env) === 'dev'
     const defaults = await this.defaults()
     return {
@@ -391,6 +393,7 @@ export class BlaxelSettingsManager {
     this.assertMutableAuthentication()
     const workspace = validateWorkspace(workspaceValue)
     await this.runCli(['logout', workspace, '--skip-version-warning'])
+    this.selectedWorkspace = undefined
     sdkSettings.setConfig({})
     sdkSettings.credentials = null
     this.choicesCache = undefined
@@ -414,7 +417,7 @@ export class BlaxelSettingsManager {
       return
     }
     const cli = await readCliConfiguration(this.paths.cliConfig)
-    const selectedWorkspace = workspace ?? cli.current
+    const selectedWorkspace = workspace ?? this.selectedWorkspace ?? cli.current
     if (selectedWorkspace === undefined) throw new Error('Connect a Blaxel workspace first')
     const selected = cli.workspaces.find(item => item.name === selectedWorkspace)
     if (!hasCredentials(selected?.credentials)) throw new Error('Sign in to this Blaxel workspace again')
@@ -429,6 +432,13 @@ export class BlaxelSettingsManager {
       }
     }
     await this.resetSdk(selectedWorkspace)
+  }
+
+  /** Follow the CLI context again after the last sandbox binding is removed. */
+  releaseWorkspace(): void {
+    if (this.selectedWorkspace === undefined) return
+    this.selectedWorkspace = undefined
+    if (this.explicitBlEnv === undefined) delete process.env.BL_ENV
   }
 
   private assertMutableAuthentication(): void {
@@ -524,7 +534,7 @@ export class BlaxelSettingsManager {
 
   private async currentEnvironment(): Promise<'production' | 'development'> {
     const cli = await readCliConfiguration(this.paths.cliConfig)
-    const selected = cli.workspaces.find(item => item.name === cli.current)
+    const selected = cli.workspaces.find(item => item.name === (this.selectedWorkspace ?? cli.current))
     return (process.env.BL_ENV ?? selected?.env) === 'dev' ? 'development' : 'production'
   }
 
@@ -614,8 +624,19 @@ export class BlaxelSettingsManager {
       if (selected?.env === 'dev') process.env.BL_ENV = 'dev'
       else delete process.env.BL_ENV
     }
-    sdkSettings.setConfig({})
-    sdkSettings.credentials = null
+    // Resolve credentials for this session's workspace, not a CLI context that
+    // another terminal may have changed. The SDK resolves this synchronously.
+    const previousWorkspace = process.env.BL_WORKSPACE
+    try {
+      process.env.BL_WORKSPACE = workspace
+      sdkSettings.setConfig({ workspace })
+      sdkSettings.credentials = null
+      void sdkSettings.credentials
+    } finally {
+      if (previousWorkspace === undefined) delete process.env.BL_WORKSPACE
+      else process.env.BL_WORKSPACE = previousWorkspace
+    }
+    this.selectedWorkspace = workspace
   }
 
   private async runCli(args: string[], overrides: Record<string, string | undefined> = {}, redactions: string[] = []): Promise<void> {

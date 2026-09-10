@@ -149,6 +149,7 @@ export function BlaxelSettings(): ReactNode {
   const confirmation = useBlaxelConfirmation()
   const [status, setStatus] = useState<Status>()
   const [error, setError] = useState<string>()
+  const [refreshError, setRefreshError] = useState<string>()
   const [notice, setNotice] = useState<string>()
   const [busy, setBusy] = useState<string>()
   const [workspace, setWorkspace] = useState('')
@@ -165,9 +166,9 @@ export function BlaxelSettings(): ReactNode {
       setStatus(next)
       setWorkspace(current => current === '' ? next.settings.connection.workspace ?? next.settings.connection.profiles[0] ?? '' : current)
       setDefaults(current => editingDefaults ? current : next.settings.defaults)
-      setError(undefined)
+      setRefreshError(undefined)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setRefreshError(cause instanceof Error ? cause.message : String(cause))
     }
   }, [editingDefaults])
 
@@ -447,6 +448,6 @@ export function BlaxelSettings(): ReactNode {
     </section>
 
     {notice === undefined ? null : <p role="status" style={{ color: 'var(--dsw-alias-state-success-primary, #22c55e)', fontSize: 13 }}>{notice}</p>}
-    {error === undefined ? null : <p role="alert" style={{ color: 'var(--dsw-alias-state-error-primary, #ec1313)', fontSize: 13 }}>{error}</p>}
+    {(error ?? refreshError) === undefined ? null : <p role="alert" style={{ color: 'var(--dsw-alias-state-error-primary, #ec1313)', fontSize: 13 }}>{error ?? refreshError}</p>}
   </div>
 }

@@ -196,6 +196,7 @@ export class BlaxelSessionRuntime extends Service {
     let snapshot: GitWorkspaceSnapshot | undefined
     const fibers: Fiber[] = []
     try {
+      if (this.bindings.list().length === 0) this.settings.releaseWorkspace()
       await this.settings.refreshAuthentication()
       const defaults = await this.settings.defaults()
       const connection = (await this.settings.status()).connection
@@ -360,6 +361,7 @@ export class BlaxelSessionRuntime extends Service {
       this.sessions.delete(sessionId)
       this.recoveryErrors.delete(sessionId)
       this.missingSandboxes.delete(sessionId)
+      if (this.bindings.list().length === 0) this.settings.releaseWorkspace()
       await session.release()
       return
     }
@@ -378,6 +380,7 @@ export class BlaxelSessionRuntime extends Service {
     this.bindings.remove(sessionId)
     this.recoveryErrors.delete(sessionId)
     this.missingSandboxes.delete(sessionId)
+    if (this.bindings.list().length === 0) this.settings.releaseWorkspace()
   }
 
   async divergence(sessionId: string): Promise<DivergenceResult> {
@@ -500,12 +503,12 @@ export class BlaxelSessionRuntime extends Service {
       if (this.sessions.has(binding.sessionId)) continue
       const fibers: Fiber[] = []
       try {
+        await this.settings.refreshAuthentication(binding.workspace)
         const connection = (await this.settings.status()).connection
         if (!connection.authenticated) throw new Error(`Reconnect the ${binding.workspace} Blaxel workspace to restore this sandbox session`)
         if (connection.workspace !== binding.workspace || connection.environment !== binding.environment) {
           throw new Error(`Switch to the ${binding.workspace} Blaxel workspace to restore this sandbox session`)
         }
-        await this.settings.refreshAuthentication(binding.workspace)
         const remote = this.ctx.isolate('blaxel').isolate('fs').isolate('subprocess')
         fibers.push(await remote.plugin(BlaxelRuntime, {
           name: binding.sandboxName,

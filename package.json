@@ -33,7 +33,7 @@
       "node-pty"
     ],
     "overrides": {
-      "js-yaml": "4.3.1",
+      "js-yaml": "4.3.2",
       "fast-uri": "3.1.7",
       "qs": "6.16.0",
       "toml": "4.3.0"
@@ -109,7 +109,8 @@
     "cloud.patch.yml",
     "patches",
     "docs/cloud-session-handoff.md",
-    "examples/invoice-desk"
+    "examples/invoice-desk",
+    "SECURITY.md"
   ],
   "dsh": {
     "bundle": {
@@ -135,7 +136,7 @@
   },
   "dependencies": {
     "@apify/mcpc": "0.6.0",
-    "@blaxel/core": "0.3.12",
+    "@blaxel/core": "0.3.20-preview.290",
     "@deepseek-ai/dsh-agent": "0.1.2-rc.1",
     "@deepseek-ai/dsh-api-gateway": "0.1.2-rc.1",
     "@deepseek-ai/dsh-attachment": "0.1.2-rc.1",
@@ -199,14 +200,14 @@
     "@types/ws": "^8.18.1",
     "esbuild": "^0.25.0",
     "fast-uri": "^3.1.7",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^4.3.2",
     "oxlint": "^1.11.2",
     "publint": "^0.3.12",
     "qs": "^6.16.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   },
   "bin": {
     "dsh-blaxel": "./dist/cli.js"

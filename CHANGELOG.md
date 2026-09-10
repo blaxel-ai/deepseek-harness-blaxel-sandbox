@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased: independent cloud session handoff
+## 0.1.3 - 2026-09-09
+
+### Independent cloud session handoff
 
 - Move an existing conversation and Git worktree into a full private Blaxel DSH host, including automatic continuation after a running tool finishes.
 - Automatically authenticate and renew private previews, retain native origin checks, and bridge strict local cookies on the return navigation.
@@ -11,9 +13,18 @@
 - Verify fresh packed installations on Node 22 and 24 in browser CI, and exercise a native private cloud host in the scheduled live suite.
 - Keep return diffs and cloud controls readable in light and dark themes.
 - Keep execution ownership enforced at the native API gateway and selected-model credentials separate from local Blaxel credentials.
-- Live browser testing proved independent model/tool steps with the original DSH host suspended, conflict recovery, and repeated handoff. This code has not been released.
+- Live browser testing proved independent model/tool steps with the original DSH host suspended, conflict recovery, and repeated handoff.
 
-## Unreleased: 0.1.3 compatibility and round-trip improvements
+### Dependency security
+
+- Pin the published `@blaxel/core@0.3.20-preview.290` SDK, which replaces the vulnerable TOML parser with `smol-toml`. The exact preview is pinned until the fix reaches a stable SDK release.
+- Update `js-yaml` and Vitest to patched versions and verify audits in a fresh consumer profile as well as this repository.
+
+### Compatibility and round-trip improvements
+
+- Keep sandbox authentication attached to the session workspace when another terminal changes the global Blaxel CLI context; restore that workspace before recovering persisted bindings, and follow the CLI context again after the last sandbox closes.
+- Patch profile-local native history imports for both custom-profile argument forms and simultaneous launches.
+- Preserve settings action errors during background refresh and use the bound environment for browser reauthentication.
 
 - **Implicit model authentication is checked before sandbox launch.** Empty pi-ai provider profiles now use the provider's own API-key, OAuth, and ambient credential checks. Missing OpenAI keys open the existing inline setup form instead of allowing a sandbox launch followed by `Provider is not configured: openai`. The check does not refresh OAuth or send model requests; credentials remain on the host.
 - **The composer action works again on DSH 0.1.2.** DSH 0.1.2 hands session-scoped slot entries `sessionId` and `useSession` instead of a `session` object; the Blaxel entries now read that contract, so **Move to Blaxel** / **Open on Blaxel** render instead of crashing the slot.
