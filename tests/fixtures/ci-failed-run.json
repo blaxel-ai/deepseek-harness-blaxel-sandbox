@@ -1,0 +1,10 @@
+{
+  "id": 36391230471,
+  "run_attempt": 1,
+  "event": "schedule",
+  "head_branch": "main",
+  "head_sha": "1c31c4abacec9361eae4d3df7b7e1cb3e2067023",
+  "name": "CI",
+  "run_started_at": "2026-09-28T07:21:38Z",
+  "created_at": "2026-09-28T07:21:38Z"
+}

@@ -116,3 +116,31 @@ jobs:
           if [ -z "$BL_API_KEY" ]; then echo "BL_API_KEY secret not set; skipping live smoke"; exit 0; fi
           pnpm build
           DSH_BLAXEL_LIVE=1 pnpm vitest run tests/live.test.ts tests/live-roundtrip.test.ts
+
+  # DM the maintainer on Slack when a main-branch push, scheduled, or manual run
+  # fails. check-dsh-next is excluded because it is allowed to fail.
+  notify-failure:
+    needs: [check, e2e, live-smoke]
+    if: >-
+      always() &&
+      contains(needs.*.result, 'failure') &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Send the failure DM
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_ALERT_SLACK_BOT_TOKEN: ${{ secrets.CI_ALERT_SLACK_BOT_TOKEN }}
+          CI_ALERT_SLACK_USER_ID: ${{ secrets.CI_ALERT_SLACK_USER_ID }}
+          CI_ALERT_SLACK_TEAM_ID: ${{ secrets.CI_ALERT_SLACK_TEAM_ID }}
+        run: node scripts/ci/notify-failure.mjs

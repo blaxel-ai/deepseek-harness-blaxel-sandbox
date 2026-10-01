@@ -1,0 +1,332 @@
+{
+  "jobs": [
+    {
+      "name": "check-dsh-next",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Pin every @deepseek-ai/dsh-* package to the next dist-tag",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm install --no-frozen-lockfile",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Run pnpm check",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "live-smoke",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "conclusion": "success"
+        },
+        {
+          "name": "Live sandbox smoke",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "check (22)",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm check",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm audit --audit-level=low",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "e2e (22)",
+      "conclusion": "cancelled",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Isolate the test profile and runtime",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm pack",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install the packed plugin into the fresh Web profile",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm exec playwright install --with-deps chromium",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm e2e",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Run actions/upload-artifact@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "e2e (24)",
+      "conclusion": "failure",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Isolate the test profile and runtime",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm pack",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install the packed plugin into the fresh Web profile",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm exec playwright install --with-deps chromium",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm e2e",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Run actions/upload-artifact@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "check (24)",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm install --frozen-lockfile",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm check",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run pnpm audit --audit-level=low",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ]
+}
