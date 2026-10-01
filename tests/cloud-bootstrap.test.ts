@@ -29,7 +29,8 @@ describe('cloud host bootstrap', () => {
   it('installs the cloud runtime from the committed lockfile before adding the plugin', async () => {
     const steps: Step[] = []
     const seed = { sandboxName: 'sbx', workspace: 'ws', session: { meta: { cwd: '/workspace' } } }
-    await bootCloudHost(fakeSandbox(steps), seed as never, {}, {})
+    // Skip packing dist/: the check runs tests before the build.
+    await bootCloudHost(fakeSandbox(steps), seed as never, {}, {}, async () => Buffer.from('plugin'))
 
     const manifest = await readFile(resolve('runtime/package.json'), 'utf8')
     const lockfile = await readFile(resolve('runtime/package-lock.json'), 'utf8')
