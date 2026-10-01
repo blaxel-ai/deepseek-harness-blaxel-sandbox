@@ -26,8 +26,8 @@ importers:
         specifier: 0.6.0
         version: 0.6.0
       '@blaxel/core':
-        specifier: 0.3.20-preview.290
-        version: 0.3.20-preview.290(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))
+        specifier: 0.3.25
+        version: 0.3.25(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))
       '@deepseek-ai/dsh-agent':
         specifier: 0.1.2-rc.1
         version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)))(@deepseek-ai/dsh-session@0.1.2-rc.1(patch_hash=69ea7c23bf05c19b87e0cdeb8ef05aa116cdcccb2598991d9b69b7e120b6c859)(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-system-prompt@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))
@@ -306,8 +306,8 @@ packages:
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
     engines: {node: '>=6.9.0'}
 
-  '@blaxel/core@0.3.20-preview.290':
-    resolution: {integrity: sha512-1x7OUjR7woYRaeyZ6UTNVa3BzW89E7EzbkPfEXYBElR5L4oR8VvlT7XZXuSGZhP7++HbBO82ScHCVq3CaBK/jQ==}
+  '@blaxel/core@0.3.25':
+    resolution: {integrity: sha512-K6aGUyIpgrPnkpwMOI/U/gbZwveOMu1Am04pkawZQjkp7NUa/roG0HC6NJPBp3AVVJY3CQtkGSWpAJ2DV4ZKpw==}
     engines: {node: '>=18'}
 
   '@deepseek-ai/cordis-plugin-include@1.0.6':
@@ -3103,7 +3103,7 @@ snapshots:
 
   '@babel/runtime@7.29.7': {}
 
-  '@blaxel/core@0.3.20-preview.290(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))':
+  '@blaxel/core@0.3.25(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.99.0(typescript@5.9.3))
       '@modelcontextprotocol/sdk': 1.30.0

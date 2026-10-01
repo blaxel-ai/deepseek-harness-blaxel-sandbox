@@ -11,6 +11,7 @@
 
 ### Dependency security
 
+- Move from the `@blaxel/core@0.3.20-preview.290` preview pin to the stable `@blaxel/core@0.3.25`, which includes the TOML parser fix.
 - Patch advisories published since 0.1.3 in the development lockfile: `brace-expansion` (high), `fast-uri` 3.1.8, `hono`, and `ip-address`. A fresh consumer profile already resolves patched versions.
 
 ## 0.1.3 - 2026-09-09

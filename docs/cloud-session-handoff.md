@@ -58,6 +58,6 @@ The private acceptance artifacts and screenshot manifest are maintained with the
 
 ## Verification and release
 
-Fresh-package browser CI covers Node 22 and 24. The credentialed suite boots and authenticates the native private cloud host, rejects forged external preview requests, verifies native subprocess and terminal execution, freezes its transcript and draft, and returns its files. Independent model continuation has separate live browser evidence above. Version 0.1.3 pins the published `@blaxel/core@0.3.20-preview.290` SDK to include its TOML security fix; move to a stable SDK after the fix is released and revalidated.
+Fresh-package browser CI covers Node 22 and 24. The credentialed suite boots and authenticates the native private cloud host, rejects forged external preview requests, verifies native subprocess and terminal execution, freezes its transcript and draft, and returns its files. Independent model continuation has separate live browser evidence above. Version 0.1.4 uses the stable `@blaxel/core@0.3.25` SDK, which includes the TOML parser security fix first pinned as a preview in 0.1.3.
 
 Package publication, documentation deployment, and content publication are separate release steps. Verify the installed package version before relying on cloud continuation; earlier tools-only versions need the original host to keep running.
