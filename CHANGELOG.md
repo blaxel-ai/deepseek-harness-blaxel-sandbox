@@ -9,6 +9,10 @@
 - Key the runtime cache on the patch, manifest, and lockfile, so runtimes created by earlier unlocked launches are rebuilt instead of reused.
 - `dsh-blaxel plugin ... add @blaxel/dsh-sandbox@latest` (or the bare package name) now installs the launcher's own version. The profile plugin always matches the prepared runtime, and pnpm 11's default one-day `minimumReleaseAge` no longer quietly installs the previous plugin release during a new release's first day.
 
+### Dependency security
+
+- Patch advisories published since 0.1.3 in the development lockfile: `brace-expansion` (high), `fast-uri` 3.1.8, `hono`, and `ip-address`. A fresh consumer profile already resolves patched versions.
+
 ## 0.1.3 - 2026-09-09
 
 ### Independent cloud session handoff

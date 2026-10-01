@@ -34,9 +34,12 @@
     ],
     "overrides": {
       "js-yaml": "4.3.2",
-      "fast-uri": "3.1.7",
+      "fast-uri": "3.1.8",
       "qs": "6.16.0",
-      "toml": "4.3.0"
+      "toml": "4.3.0",
+      "brace-expansion@>=2.0.0 <2.1.7": "2.1.7",
+      "hono@<4.13.7": "4.13.7",
+      "ip-address@<10.7.1": "10.7.2"
     },
     "patchedDependencies": {
       "@deepseek-ai/dsh-session@0.1.2-rc.1": "patches/@deepseek-ai__dsh-session@0.1.2-rc.1.patch"
@@ -200,7 +203,7 @@
     "@types/react-dom": "^18.3.0",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.25.0",
-    "fast-uri": "^3.1.7",
+    "fast-uri": "^3.1.8",
     "js-yaml": "^4.3.2",
     "oxlint": "^1.11.2",
     "publint": "^0.3.12",

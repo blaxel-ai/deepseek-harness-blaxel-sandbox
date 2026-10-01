@@ -16,9 +16,9 @@ const fastUriVersion = (require('fast-uri/package.json') as { version: string })
 // suite added by the 3.1.7 security release (test/ipv6-validation.test.js and
 // test/component-safe-serialization.test.js), not invented here.
 
-describe('fast-uri security fixes (pnpm override -> 3.1.7)', () => {
-  it('is pinned to the version that fixes GHSA-58mr-gqgx-xq4g and GHSA-qw65-cvwx-89v3', () => {
-    expect(fastUriVersion).toBe('3.1.7')
+describe('fast-uri security fixes (pnpm override -> 3.1.8)', () => {
+  it('is pinned to the version that fixes GHSA-58mr-gqgx-xq4g, GHSA-qw65-cvwx-89v3 and GHSA-hrr3-gc8f-f4qj', () => {
+    expect(fastUriVersion).toBe('3.1.8')
   })
 
   it('rejects a host with an unclosed/misplaced IP-literal bracket instead of silently confusing it (GHSA-58mr-gqgx-xq4g)', () => {
