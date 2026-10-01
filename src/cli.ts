@@ -12,6 +12,10 @@ const exec = promisify(execFile)
 const version = '0.1.2-rc.1'
 const packageRoot = fileURLToPath(new URL('../', import.meta.url))
 const patch = join(packageRoot, 'patches', `@deepseek-ai__dsh-session@${version}.patch`)
+// The runtime installs from a committed lockfile. Without it, npm floats DSH's
+// caret ranges to newer Cordis releases that this DSH build cannot boot with.
+const runtimeManifest = join(packageRoot, 'runtime', 'package.json')
+const runtimeLockfile = join(packageRoot, 'runtime', 'package-lock.json')
 
 /** Profile dependencies can shadow the launcher's cached native session package. */
 export async function prepareProfileImports(profileRoot: string): Promise<void> {
@@ -42,7 +46,10 @@ export async function prepareProfileImports(profileRoot: string): Promise<void> 
 
 /** Keep the required native import extension isolated from the user's installed DSH. */
 export async function prepareRuntime(cacheRoot = process.env.DSH_BLAXEL_RUNTIME_CACHE ?? join(homedir(), '.cache', 'blaxel', 'dsh')): Promise<string> {
-  const hash = createHash('sha256').update(await readFile(patch)).digest('hex').slice(0, 16)
+  const [patchSource, manifestSource, lockfileSource] = await Promise.all([readFile(patch), readFile(runtimeManifest), readFile(runtimeLockfile)])
+  // Key the cache on the exact install inputs, so a runtime built from a different
+  // lockfile (including earlier unlocked installs) is never reused.
+  const hash = createHash('sha256').update(patchSource).update(manifestSource).update(lockfileSource).digest('hex').slice(0, 16)
   const directory = join(cacheRoot, `${version}-${hash}`)
   const entry = join(directory, 'node_modules/@deepseek-ai/dsh/lib/bin.js')
   try { await readFile(join(directory, 'ready')); return entry }
@@ -50,9 +57,10 @@ export async function prepareRuntime(cacheRoot = process.env.DSH_BLAXEL_RUNTIME_
   await mkdir(cacheRoot, { recursive: true, mode: 0o700 })
   const temporary = await mkdtemp(join(cacheRoot, 'install-'))
   try {
-    await writeFile(join(temporary, 'package.json'), JSON.stringify({ name: 'blaxel-cloud-session-host', private: true, dependencies: { '@deepseek-ai/dsh': version } }))
+    await writeFile(join(temporary, 'package.json'), manifestSource)
+    await writeFile(join(temporary, 'package-lock.json'), lockfileSource)
     process.stderr.write('Preparing the pinned DeepSeek cloud-session runtime (first launch only)...\n')
-    await exec('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: temporary, maxBuffer: 4 * 1024 * 1024, timeout: 300_000 })
+    await exec('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: temporary, maxBuffer: 4 * 1024 * 1024, timeout: 300_000 })
     const require = createRequire(join(temporary, 'node_modules/@deepseek-ai/dsh/package.json'))
     const sessionRoot = dirname(require.resolve('@deepseek-ai/dsh-session/package.json'))
     await exec('git', ['apply', '--check', patch], { cwd: sessionRoot })

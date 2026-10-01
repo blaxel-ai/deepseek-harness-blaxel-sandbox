@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 - 2026-10-01
+
+### Reproducible cloud-session runtime
+
+- Install the launcher's DSH runtime from a committed lockfile (`runtime/package-lock.json`) with `npm ci`. Unlocked installs resolved DSH 0.1.2-rc.1's caret ranges to the 2026-09-22 Cordis releases, and `dsh-blaxel web` then exited at boot with `user patch-layer watching requires the Cordis HMR service`. The lock keeps the Cordis release this DSH build was verified with and patches the moderate `fast-uri` and `ip-address` advisories.
+- Key the runtime cache on the patch, manifest, and lockfile, so runtimes created by earlier unlocked launches are rebuilt instead of reused.
+
 ## 0.1.3 - 2026-09-09
 
 ### Independent cloud session handoff

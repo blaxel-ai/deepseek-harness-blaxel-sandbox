@@ -1,0 +1,8 @@
+{
+  "name": "blaxel-cloud-session-host",
+  "private": true,
+  "description": "Pinned DeepSeek Harness runtime installed by dsh-blaxel. Regenerate package-lock.json when the DSH version changes.",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.2-rc.1"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "@blaxel/dsh-sandbox",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Blaxel sandbox execution plugin for DeepSeek Harness (DSH)",
   "keywords": [
     "agent-sandbox",
@@ -110,7 +110,8 @@
     "patches",
     "docs/cloud-session-handoff.md",
     "examples/invoice-desk",
-    "SECURITY.md"
+    "SECURITY.md",
+    "runtime"
   ],
   "dsh": {
     "bundle": {

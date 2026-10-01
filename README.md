@@ -1,6 +1,6 @@
 # Blaxel Sandbox for DeepSeek Harness
 
-Version 0.1.3 moves a DeepSeek Harness Web conversation and its current Git worktree to an independent DSH host in a private Blaxel sandbox. Once the cloud page is ready, model requests and tools continue there with the originating computer offline. Earlier tools-only versions require the original host to stay running.
+Version 0.1.4 moves a DeepSeek Harness Web conversation and its current Git worktree to an independent DSH host in a private Blaxel sandbox. Once the cloud page is ready, model requests and tools continue there with the originating computer offline. Earlier tools-only versions require the original host to stay running.
 
 Use [GUIDE.md](GUIDE.md) for setup and recovery, and [the cloud handoff contract](docs/cloud-session-handoff.md) for implementation status and tested boundaries.
 
@@ -28,7 +28,7 @@ DeepSeek Harness is in developer preview and its plugin contracts change between
 
 | Plugin | DSH host | Node.js |
 | -- | -- | -- |
-| `0.1.3` | `0.1.2-rc.1` | 22.19+, 24+ |
+| `0.1.4`, `0.1.3` | `0.1.2-rc.1` | 22.19+, 24+ |
 | `0.1.2`, `0.1.1` | `0.1.2-rc.1` | 22, 24 |
 | `0.1.0` | `0.1.1-rc.2` | 22, 24 |
 
