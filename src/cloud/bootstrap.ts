@@ -31,7 +31,7 @@ async function packageArchive(): Promise<Buffer> {
   } finally { await rm(temp, { recursive: true, force: true }) }
 }
 
-export async function bootCloudHost(sandbox: SandboxInstance, seed: Omit<CloudSeed, 'previewOrigin'>, settings: Record<string, unknown>, env: Record<string, string>): Promise<void> {
+export async function bootCloudHost(sandbox: SandboxInstance, seed: Omit<CloudSeed, 'previewOrigin'>, settings: Record<string, unknown>, env: Record<string, string>, archive: () => Promise<Buffer> = packageArchive): Promise<void> {
   requireTransferSize(seed)
   const preview = await sandbox.previews.createIfNotExists({ metadata: { name: PREVIEW }, spec: { port: 5173, public: false } })
   const origin = preview.spec?.url
@@ -42,17 +42,22 @@ export async function bootCloudHost(sandbox: SandboxInstance, seed: Omit<CloudSe
   const attempt = randomUUID().slice(0, 8)
   const init = await sandbox.process.exec({ name: `dsh-host-directories-${attempt}`, command: `umask 077; mkdir -p ${CLOUD_ROOT}/runtime ${CLOUD_ROOT}/home/profiles/web; test -f ${CLOUD_ROOT}/seed.json && printf seeded`, waitForCompletion: true, timeout: 20 })
   if (init.exitCode !== 0 && init.exitCode !== 1) throw new Error('Could not prepare the cloud host directory')
-  await sandbox.fs.writeBinary(`${CLOUD_ROOT}/plugin.tgz`, await packageArchive())
+  await sandbox.fs.writeBinary(`${CLOUD_ROOT}/plugin.tgz`, await archive())
   if (init.exitCode === 1) await sandbox.fs.write(`${CLOUD_ROOT}/seed.json`, JSON.stringify({ ...seed, previewOrigin: origin }))
   await sandbox.fs.write(`${CLOUD_ROOT}/home/settings.yaml`, stringify(settings))
   await sandbox.fs.write(`${CLOUD_ROOT}/npmrc`, '')
+  // Same locked runtime as the local launcher: an unlocked install resolves DSH's
+  // ^1.0.3 range to cordis-plugin-loader 1.0.4+, and the cloud host then exits at boot.
+  await sandbox.fs.write(`${CLOUD_ROOT}/runtime/package.json`, await readFile(join(packageRoot, 'runtime', 'package.json'), 'utf8'))
+  await sandbox.fs.write(`${CLOUD_ROOT}/runtime/package-lock.json`, await readFile(join(packageRoot, 'runtime', 'package-lock.json'), 'utf8'))
   await sandbox.fs.write(`${CLOUD_ROOT}/home/profiles/web/package.json`, JSON.stringify({ name: 'dsh-cloud-session', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } } }))
   await sandbox.fs.write(`${CLOUD_ROOT}/home/profiles/web/cordis.patch.yml`, (await readFile(join(packageRoot, 'cloud.patch.yml'), 'utf8'))
     .replaceAll('__DSH_PREVIEW_HOST__', new URL(origin).host)
     .replaceAll('__DSH_PLUGIN_ROOT__', `${CLOUD_ROOT}/runtime/node_modules/@blaxel/dsh-sandbox`))
+  const npmFlags = `--ignore-scripts --userconfig=${CLOUD_ROOT}/npmrc --globalconfig=/dev/null --no-audit --no-fund --omit=dev`
   const install = await sandbox.process.exec({
     name: `dsh-host-install-${attempt}`,
-    command: `npm install --ignore-scripts --userconfig=${CLOUD_ROOT}/npmrc --globalconfig=/dev/null --prefix ${CLOUD_ROOT}/runtime --no-audit --no-fund --omit=dev @deepseek-ai/dsh@${DSH_VERSION} ${CLOUD_ROOT}/plugin.tgz && ln -sfn ${CLOUD_ROOT}/runtime/node_modules ${CLOUD_ROOT}/home/profiles/web/node_modules`,
+    command: `cd ${CLOUD_ROOT}/runtime && npm ci ${npmFlags} && npm install ${npmFlags} ${CLOUD_ROOT}/plugin.tgz && test "$(node -p "require('${CLOUD_ROOT}/runtime/node_modules/@deepseek-ai/dsh/package.json').version")" = ${DSH_VERSION} && ln -sfn ${CLOUD_ROOT}/runtime/node_modules ${CLOUD_ROOT}/home/profiles/web/node_modules`,
     workingDir: CLOUD_ROOT,
     waitForCompletion: true, timeout: 300,
   })

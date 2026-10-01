@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.4 - 2026-10-01
+
+### Reproducible cloud-session runtime
+
+- Install the launcher's DSH runtime from a committed lockfile (`runtime/package-lock.json`) with `npm ci`. Unlocked installs resolved DSH 0.1.2-rc.1's `^1.0.3` range to `@deepseek-ai/cordis-plugin-loader` 1.0.4+ (2026-09-22), and `dsh-blaxel web` then exited at boot with `user patch-layer watching requires the Cordis HMR service`. The lock keeps the Cordis release this DSH build was verified with and patches the moderate `fast-uri` and `ip-address` advisories.
+- Install the cloud host's runtime inside the sandbox from the same lockfile (`npm ci`, then the plugin). The cloud host had the same unlocked install, so since 2026-09-22 it crashed at boot, restarted until its retries ran out, and handoff failed with `The cloud session could not be reached` (the scheduled live smoke failed the same way on 2026-09-28). The runtime manifest also overrides the Cordis packages, so adding the plugin cannot move them.
+- Key the runtime cache on the patch, manifest, and lockfile, so runtimes created by earlier unlocked launches are rebuilt instead of reused.
+- `dsh-blaxel plugin ... add @blaxel/dsh-sandbox@latest` (or the bare package name) now installs the launcher's own version. The profile plugin always matches the prepared runtime, and pnpm 11's default one-day `minimumReleaseAge` no longer quietly installs the previous plugin release during a new release's first day.
+
+### Dependency security
+
+- Move from the `@blaxel/core@0.3.20-preview.290` preview pin to the stable `@blaxel/core@0.3.25`, which includes the TOML parser fix.
+- Patch advisories published since 0.1.3 in the development lockfile: `brace-expansion` (high), `fast-uri` 3.1.8, `hono`, and `ip-address`. A fresh consumer profile already resolves patched versions.
+
 ## 0.1.3 - 2026-09-09
 
 ### Independent cloud session handoff

@@ -5,7 +5,7 @@ import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { prepareProfileImports } from '../src/cli.js'
+import { pinPluginSpec, prepareProfileImports } from '../src/cli.js'
 
 const require = createRequire(import.meta.url)
 
@@ -34,7 +34,7 @@ describe('profile session import support', () => {
       const home = join(root, 'home')
       await mkdir(join(home, 'profiles'), { recursive: true })
       await symlink(root, join(home, 'profiles/team'), 'dir')
-      const hash = createHash('sha256').update(await readFile(patch)).digest('hex').slice(0, 16)
+      const hash = createHash('sha256').update(await readFile(patch)).update(await readFile(resolve('runtime/package.json'))).update(await readFile(resolve('runtime/package-lock.json'))).digest('hex').slice(0, 16)
       const cache = join(root, 'cache')
       const runtime = join(cache, `0.1.2-rc.1-${hash}`)
       const entry = join(runtime, 'node_modules/@deepseek-ai/dsh/lib/bin.js')
@@ -63,5 +63,39 @@ describe('profile session import support', () => {
     } finally {
       await rm(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('cloud-session runtime lock', () => {
+  it('installs the launcher DSH version with the Cordis release it boots with', async () => {
+    const manifest = JSON.parse(await readFile(resolve('runtime/package.json'), 'utf8')) as { dependencies: Record<string, string> }
+    const lock = JSON.parse(await readFile(resolve('runtime/package-lock.json'), 'utf8')) as { packages: Record<string, { version?: string, dependencies?: Record<string, string> }> }
+    const cli = await readFile(resolve('src/cli.ts'), 'utf8')
+    const launcherVersion = /const version = '([^']+)'/.exec(cli)?.[1]
+    expect(manifest.dependencies['@deepseek-ai/dsh']).toBe(launcherVersion)
+    expect(lock.packages['']?.dependencies?.['@deepseek-ai/dsh']).toBe(launcherVersion)
+    expect(lock.packages['node_modules/@deepseek-ai/dsh']?.version).toBe(launcherVersion)
+    // cordis-plugin-loader 1.0.4+ (2026-09-22) fails DSH 0.1.2-rc.1 boot: "requires the Cordis HMR service".
+    expect(lock.packages['node_modules/@deepseek-ai/cordis']?.version).toBe('4.0.2')
+    expect(lock.packages['node_modules/@deepseek-ai/cordis-plugin-loader']?.version).toBe('1.0.3')
+    const files = (JSON.parse(await readFile(resolve('package.json'), 'utf8')) as { files: string[] }).files
+    expect(files).toContain('runtime')
+  })
+})
+
+describe('plugin install spec', () => {
+  it('pins the plugin to the launcher version when adding latest or an unversioned spec', () => {
+    const flags = ['plugin', '--profile', 'web', 'add', '--allow-build=koffi']
+    expect(pinPluginSpec([...flags, '@blaxel/dsh-sandbox@latest'], '0.1.4')).toEqual([...flags, '@blaxel/dsh-sandbox@0.1.4'])
+    expect(pinPluginSpec([...flags, '@blaxel/dsh-sandbox'], '0.1.4')).toEqual([...flags, '@blaxel/dsh-sandbox@0.1.4'])
+  })
+
+  it('leaves explicit versions, other packages, and other commands unchanged', () => {
+    const add = ['plugin', '--profile', 'web', 'add']
+    expect(pinPluginSpec([...add, '@blaxel/dsh-sandbox@0.1.1'], '0.1.4')).toEqual([...add, '@blaxel/dsh-sandbox@0.1.1'])
+    expect(pinPluginSpec([...add, './dsh-sandbox-0.1.4.tgz'], '0.1.4')).toEqual([...add, './dsh-sandbox-0.1.4.tgz'])
+    expect(pinPluginSpec([...add, '@other/plugin@latest'], '0.1.4')).toEqual([...add, '@other/plugin@latest'])
+    expect(pinPluginSpec(['plugin', '--profile', 'web', 'remove', '@blaxel/dsh-sandbox'], '0.1.4')).toEqual(['plugin', '--profile', 'web', 'remove', '@blaxel/dsh-sandbox'])
+    expect(pinPluginSpec(['web', '@blaxel/dsh-sandbox@latest'], '0.1.4')).toEqual(['web', '@blaxel/dsh-sandbox@latest'])
   })
 })
