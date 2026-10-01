@@ -12,8 +12,8 @@ const exec = promisify(execFile)
 const version = '0.1.2-rc.1'
 const packageRoot = fileURLToPath(new URL('../', import.meta.url))
 const patch = join(packageRoot, 'patches', `@deepseek-ai__dsh-session@${version}.patch`)
-// The runtime installs from a committed lockfile. Without it, npm floats DSH's
-// caret ranges to newer Cordis releases that this DSH build cannot boot with.
+// The runtime installs from a committed lockfile. Without it, npm resolves DSH's
+// ^1.0.3 range to cordis-plugin-loader 1.0.4+, which this DSH build cannot boot with.
 const runtimeManifest = join(packageRoot, 'runtime', 'package.json')
 const runtimeLockfile = join(packageRoot, 'runtime', 'package-lock.json')
 
@@ -72,15 +72,28 @@ export async function prepareRuntime(cacheRoot = process.env.DSH_BLAXEL_RUNTIME_
   } finally { await rm(temporary, { recursive: true, force: true }) }
 }
 
+const packageName = '@blaxel/dsh-sandbox'
+
+/**
+ * Pin `plugin ... add @blaxel/dsh-sandbox[@latest]` to this launcher's own version.
+ * The profile plugin then matches the runtime the launcher prepared, and pnpm's
+ * minimumReleaseAge cannot quietly install an older plugin during a release's first day.
+ */
+export function pinPluginSpec(args: readonly string[], launcherVersion: string): string[] {
+  if (args[0] !== 'plugin' || !args.includes('add')) return [...args]
+  return args.map(argument => argument === packageName || argument === `${packageName}@latest` ? `${packageName}@${launcherVersion}` : argument)
+}
+
 async function main(): Promise<void> {
   const entry = await prepareRuntime()
-  const args = process.argv.slice(2)
+  const { version: launcherVersion } = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')) as { version: string }
+  const args = pinPluginSpec(process.argv.slice(2), launcherVersion)
   if (args[0] !== 'plugin') {
     const index = args.findIndex(argument => argument === '--profile' || argument.startsWith('--profile='))
     const profile = args[0] === 'web' || index < 0 ? 'web' : args[index] === '--profile' ? args[index + 1] : args[index]!.slice('--profile='.length)
     if (profile) await prepareProfileImports(join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'profiles', profile))
   }
-  const child = spawn(process.execPath, [entry, ...process.argv.slice(2)], { stdio: 'inherit', env: process.env })
+  const child = spawn(process.execPath, [entry, ...args], { stdio: 'inherit', env: process.env })
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => child.kill(signal))
   child.on('error', error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1 })
   child.on('exit', code => { process.exitCode = code ?? 1 })
