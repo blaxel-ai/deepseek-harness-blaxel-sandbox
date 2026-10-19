@@ -19,9 +19,18 @@ const qsVersion = (require('qs/package.json') as { version: string }).version
 // PoCs below are copied from the upstream security advisories themselves
 // (GHSA-4mjr-xmp4-gh2g and GHSA-x5fp-wj9c-mxmx), not invented here.
 
-describe('qs security fixes (pnpm override -> 6.16.0)', () => {
-  it('is pinned to the version that fixes GHSA-4mjr-xmp4-gh2g and GHSA-x5fp-wj9c-mxmx', () => {
-    expect(qsVersion).toBe('6.16.0')
+// 6.16.0 is the first release with both fixes. The override may move to later
+// patch releases, so this checks the floor rather than one exact version.
+const atLeast = (version: string, floor: string) => {
+  const a = version.split('.').map(Number)
+  const b = floor.split('.').map(Number)
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]
+  return true
+}
+
+describe('qs security fixes (pnpm override)', () => {
+  it('resolves at or above the version that fixes GHSA-4mjr-xmp4-gh2g and GHSA-x5fp-wj9c-mxmx', () => {
+    expect(atLeast(qsVersion, '6.16.0'), `qs ${qsVersion} < 6.16.0`).toBe(true)
   })
 
   it('does not throw when re-serializing a parsed object carrying a poisoned constructor.isBuffer key (GHSA-4mjr-xmp4-gh2g)', () => {
