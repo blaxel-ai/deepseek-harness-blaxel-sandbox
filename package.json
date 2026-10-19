@@ -145,8 +145,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@apify/mcpc": "0.6.0",
-    "@blaxel/core": "0.3.25",
+    "@apify/mcpc": "0.7.0",
+    "@blaxel/core": "0.3.30",
     "@deepseek-ai/dsh-agent": "0.1.2-rc.1",
     "@deepseek-ai/dsh-api-gateway": "0.1.2-rc.1",
     "@deepseek-ai/dsh-attachment": "0.1.2-rc.1",
@@ -165,7 +165,7 @@
     "@deepseek-ai/dsh-system-prompt": "0.1.2-rc.1",
     "@deepseek-ai/schemastery": "^3.18.1-rc.1",
     "@earendil-works/pi-ai": "0.84.4",
-    "skills": "1.5.23",
+    "skills": "1.7.2",
     "ws": "^8.21.3",
     "yaml": "^2.9.0"
   },
@@ -208,7 +208,7 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@types/ws": "^8.18.1",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
     "fast-uri": "^3.1.8",
     "js-yaml": "^4.3.2",
     "oxlint": "^1.11.2",
@@ -216,7 +216,7 @@
     "qs": "^6.16.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"
   },
