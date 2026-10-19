@@ -145,7 +145,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@apify/mcpc": "0.6.0",
+    "@apify/mcpc": "0.7.0",
     "@blaxel/core": "0.3.30",
     "@deepseek-ai/dsh-agent": "0.1.2-rc.1",
     "@deepseek-ai/dsh-api-gateway": "0.1.2-rc.1",
