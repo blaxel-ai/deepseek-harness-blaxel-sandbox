@@ -13,6 +13,26 @@ updates:
         patterns:
           - "@blaxel/*"
     # A DSH bump is a compatibility release: re-verify the clean-profile install and add a changelog entry before merging.
+    ignore:
+      # The pnpm overrides hold the patched 3.x and 4.x lines that ajv (fast-uri ^3)
+      # and cordis-plugin-include (js-yaml ^4) declare; the next majors break them.
+      - dependency-name: "fast-uri"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "js-yaml"
+        update-types: ["version-update:semver-major"]
+      # Plugin slots render with the DSH host's React 18 (runtime/package-lock.json).
+      # Lift these when a DSH compatibility release moves the host to React 19.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      # Node types follow the lowest supported Node (engines: ^22.19.0).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
