@@ -81,14 +81,33 @@ jobs:
           echo "DSH next: $NEXT"
           node -e '
             const fs = require("node:fs");
+            const { execFileSync } = require("node:child_process");
+            const next = process.argv[1];
             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            for (const field of ["dependencies", "devDependencies"]) {
+            // A package retired in the next release has no such version; drop it instead of failing install.
+            const published = new Map();
+            const hasNext = (name) => {
+              if (!published.has(name)) {
+                const versions = [].concat(JSON.parse(execFileSync("npm", ["view", name, "versions", "--json"], { encoding: "utf8" })));
+                published.set(name, versions.includes(next));
+                if (!versions.includes(next)) console.log(`Dropping ${name}: no ${next} release`);
+              }
+              return published.get(name);
+            };
+            for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
               for (const name of Object.keys(pkg[field] ?? {})) {
-                if (name.startsWith("@deepseek-ai/dsh-")) pkg[field][name] = process.argv[1];
+                if (!name.startsWith("@deepseek-ai/dsh-")) continue;
+                if (!hasNext(name)) delete pkg[field][name];
+                else pkg[field][name] = field === "peerDependencies" ? "^" + next : next;
               }
             }
-            for (const name of Object.keys(pkg.peerDependencies ?? {})) {
-              if (name.startsWith("@deepseek-ai/dsh-")) pkg.peerDependencies[name] = "^" + process.argv[1];
+            // Patches target the current DSH version and cannot apply to next.
+            const patches = pkg.pnpm?.patchedDependencies ?? {};
+            for (const key of Object.keys(patches)) {
+              if (key.startsWith("@deepseek-ai/dsh-")) {
+                console.log(`Dropping patch ${key}`);
+                delete patches[key];
+              }
             }
             fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
           ' "$NEXT"
