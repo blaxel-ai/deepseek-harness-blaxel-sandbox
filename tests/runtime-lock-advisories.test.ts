@@ -10,6 +10,7 @@ const floors: Record<string, [string, string]> = {
   '@modelcontextprotocol/sdk': ['1.31.0', 'GHSA-6qxp-vccf-f47h'],
   compression: ['1.8.2', 'GHSA-vc2v-76pw-4v95'],
   sharp: ['0.35.5', 'GHSA-wq5f-xc86-pv6w'],
+  undici: ['8.12.2', 'GHSA-xjj6-f33q-929c'],
 }
 
 const atLeast = (version: string, floor: string) => {

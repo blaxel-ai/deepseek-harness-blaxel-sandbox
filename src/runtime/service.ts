@@ -97,6 +97,8 @@ export class BlaxelRuntime extends Service {
     labels: z.any(),
     extraArgs: z.any(),
     externalId: z.string(),
+    terminationGracePeriodSeconds: z.number(),
+    standbyGracePeriodSeconds: z.number(),
   })
 
   readonly paths: RuntimePaths
