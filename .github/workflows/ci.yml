@@ -65,7 +65,10 @@ jobs:
 
   # Early warning for the next DSH release candidate. Allowed to fail; a red run
   # means the Host contract moved and a compatibility release is due.
+  # Not run on PRs: its result does not depend on the PR, and a red check there
+  # reads as a broken PR.
   check-dsh-next:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
