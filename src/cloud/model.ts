@@ -1,7 +1,7 @@
 import { credentialKey, credentialRef, isCredentialKeySegment, isCredentialRefName } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
-import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
 import type { BlaxelWebContext } from '../web/context.js'
+import { piAiProvider } from '../web/pi-ai-providers.js'
 import { requireReadyModel } from '../web/model-readiness.js'
 
 const CLOUD_KEY = 'DSH_BLAXEL_MODEL_KEY'
@@ -30,7 +30,7 @@ export async function cloudModel(ctx: BlaxelWebContext, sessionId: string): Prom
   if (typeof profile.apiKeyEnv === 'string') key = await resolve(profile.apiKeyEnv)
   else if (ns === 'llm-deepseek') key = await resolve('DEEPSEEK_API_KEY')
   else {
-    const definition = builtinProviders().find(item => item.id === selection.provider)
+    const definition = piAiProvider(selection.provider)
     const record = isCredentialKeySegment(selection.provider) ? await credentials?.readRecord(credentialKey(ns, selection.provider)) : undefined
     if (record?.kind === 'grant') throw new Error('This model uses a local authorization grant. Select an API-key model before cloud handoff.')
     const auth = await definition?.auth?.apiKey?.resolve({

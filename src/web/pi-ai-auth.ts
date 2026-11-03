@@ -4,10 +4,8 @@ import { resolve } from 'node:path'
 import { credentialKey, credentialRef, isCredentialRefName, isCredentialKeySegment } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { createModels, InMemoryCredentialStore, type Credential } from '@earendil-works/pi-ai'
-import { builtinProviders } from '@earendil-works/pi-ai/providers/all'
 import type { BlaxelWebContext } from './context.js'
-
-const catalog = new Map(builtinProviders().map(provider => [provider.id, provider]))
+import { piAiProvider } from './pi-ai-providers.js'
 
 /** Use the adapter's native auth rules without a model request or OAuth refresh. */
 export async function inspectPiAiAuth(ctx: BlaxelWebContext, provider: string): Promise<{ configured: boolean; credentialRef?: string }> {
@@ -39,7 +37,7 @@ export async function inspectPiAiAuth(ctx: BlaxelWebContext, provider: string): 
       },
     },
   })
-  const definition = catalog.get(provider)
+  const definition = piAiProvider(provider)
   if (definition === undefined) throw new Error(`Cannot verify authentication for provider ${provider}`)
   models.setProvider(definition)
   const configured = await models.checkAuth(provider) !== undefined
