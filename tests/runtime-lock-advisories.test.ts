@@ -11,6 +11,8 @@ const floors: Record<string, [string, string]> = {
   compression: ['1.8.2', 'GHSA-vc2v-76pw-4v95'],
   sharp: ['0.35.5', 'GHSA-wq5f-xc86-pv6w'],
   undici: ['8.12.2', 'GHSA-xjj6-f33q-929c'],
+  hono: ['4.13.18', 'GHSA-h25j-2p75-qj33'],
+  '@hono/node-server': ['2.1.6', 'GHSA-jpvv-r467-5p4w'],
 }
 
 const atLeast = (version: string, floor: string) => {
