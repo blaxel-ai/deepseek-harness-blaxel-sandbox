@@ -10,7 +10,6 @@ overrides:
   qs: 6.17.1
   toml: 4.3.0
   brace-expansion@>=2.0.0 <2.1.7: 2.1.7
-  hono@<4.13.11: 4.13.11
   ip-address@<10.7.4: 10.7.4
   proxy-addr@<2.0.8: 2.0.8
   source-map-js@<1.2.2: 1.2.2
@@ -23,6 +22,8 @@ overrides:
   follow-redirects@>=1.16.0 <1.16.2: 1.16.2
   glob@>=9.0.0 <14.0.2: 14.0.2
   minimatch@<11.0.1: 11.0.4
+  '@hono/node-server@>=2.0.0 <2.1.6': 2.1.6
+  hono@>=4.0.0 <4.13.16: 4.13.16
 
 patchedDependencies:
   '@deepseek-ai/dsh-session@0.1.2-rc.1':
@@ -37,8 +38,8 @@ importers:
         specifier: 0.7.0
         version: 0.7.0
       '@blaxel/core':
-        specifier: 0.3.32
-        version: 0.3.32(@hey-api/openapi-ts@0.99.0(typescript@7.0.2))
+        specifier: 0.3.39
+        version: 0.3.39(@hey-api/openapi-ts@0.99.0(typescript@7.0.2))
       '@deepseek-ai/dsh-agent':
         specifier: 0.1.2-rc.1
         version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-session@0.1.2-rc.1(patch_hash=69ea7c23bf05c19b87e0cdeb8ef05aa116cdcccb2598991d9b69b7e120b6c859)(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5))))(@deepseek-ai/dsh-system-prompt@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-invariants@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5))))(@deepseek-ai/dsh-typert-protocol@0.1.2-rc.1(@deepseek-ai/cordis@4.0.5))
@@ -303,8 +304,8 @@ packages:
     resolution: {integrity: sha512-v+oN26xP4YIlQsbQ/CbTH1WG5m/l/DjKKZNy/Kp3f/AFvbgt7Em/D0FeMM3O2hX0YzeN2M16W8lOpyhIkfCBcQ==}
     engines: {node: '>=6.9.0'}
 
-  '@blaxel/core@0.3.32':
-    resolution: {integrity: sha512-RkQn7/LlcUb8xfko+DXcciEsDuEG1xZ5kEqBFawwtmpvZ+uLtDjK1pRhqJ1Q8MAiYXly+HfyRbQVC4Ykudv3bw==}
+  '@blaxel/core@0.3.39':
+    resolution: {integrity: sha512-8oN0wYQxzWriPXu8EnMwKXo4LHjBNVdse9B8u9zotplbsts9YUrqBrIG6WYlNBDswvkwzVk222GVM622fEzRxQ==}
     engines: {node: '>=18'}
 
   '@deepseek-ai/cordis-plugin-include@1.0.10':
@@ -767,11 +768,11 @@ packages:
   '@hey-api/types@0.1.4':
     resolution: {integrity: sha512-thWfawrDIP7wSI9ioT13I5soaaqB5vAPIiZmgD8PbeEVKNrkonc0N/Sjj97ezl7oQgusZmaNphGdMKipPO6IBg==}
 
-  '@hono/node-server@2.1.5':
-    resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
+  '@hono/node-server@2.1.6':
+    resolution: {integrity: sha512-p/KH9MnfNcsm3sR6x4lNgm5j+QN4Et8srKredl9DZfXiyZ1UQ3aQ2YVpFLbqktYN5JI+DB+VZFKM2PqE5hLKjQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: 4.13.11
+      hono: 4.13.16
 
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
@@ -1940,8 +1941,8 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
-  hono@4.13.11:
-    resolution: {integrity: sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==}
+  hono@4.13.16:
+    resolution: {integrity: sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A==}
     engines: {node: '>=16.9.0'}
 
   http-errors@2.0.1:
@@ -3009,7 +3010,7 @@ snapshots:
 
   '@babel/runtime@7.29.13': {}
 
-  '@blaxel/core@0.3.32(@hey-api/openapi-ts@0.99.0(typescript@7.0.2))':
+  '@blaxel/core@0.3.39(@hey-api/openapi-ts@0.99.0(typescript@7.0.2))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.99.0(typescript@7.0.2))
       '@modelcontextprotocol/sdk': 1.32.1
@@ -3466,9 +3467,9 @@ snapshots:
 
   '@hey-api/types@0.1.4': {}
 
-  '@hono/node-server@2.1.5(hono@4.13.11)':
+  '@hono/node-server@2.1.6(hono@4.13.16)':
     dependencies:
-      hono: 4.13.11
+      hono: 4.13.16
 
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
@@ -3559,7 +3560,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.32.1':
     dependencies:
-      '@hono/node-server': 2.1.5(hono@4.13.11)
+      '@hono/node-server': 2.1.6(hono@4.13.16)
       ajv: 8.20.0
       ajv-formats: 3.0.1
       content-type: 1.0.5
@@ -3569,7 +3570,7 @@ snapshots:
       eventsource-parser: 3.1.1
       express: 5.3.0
       express-rate-limit: 8.7.1(express@5.3.0)
-      hono: 4.13.11
+      hono: 4.13.16
       jose: 6.2.12
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -4446,7 +4447,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.13.11: {}
+  hono@4.13.16: {}
 
   http-errors@2.0.1:
     dependencies:
